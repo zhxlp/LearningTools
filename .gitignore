@@ -28,7 +28,7 @@ yarn-error.*
 
 # macOS
 .DS_Store
-*.pem
+# *.pem
 
 # local env files
 .env*.local
@@ -41,3 +41,8 @@ app-example
 # generated native folders
 /ios
 /android
+
+# keystore
+/debug.keystore
+/code-signing/private-key.pem
+/code-signing/public-key.pem

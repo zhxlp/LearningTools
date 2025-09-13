@@ -1,0 +1,8 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "学习工具"
+  },
+  "android": {
+    "app_name": "学习工具"
+  }
+}

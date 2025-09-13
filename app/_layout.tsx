@@ -1,9 +1,10 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
 
 export default function RootLayout() {
   return (
-    <>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <StatusBar style="dark" />
       <Stack 
         screenOptions={{
@@ -34,10 +35,17 @@ export default function RootLayout() {
           name="letter-listening/index" 
           options={{ 
             title: '字母听力测试',
+            headerShown: false,
+          }} 
+        />
+        <Stack.Screen 
+          name="letter-listening/report" 
+          options={{ 
+            title: '学习报表',
             headerShown: true,
           }} 
         />
       </Stack>
-    </>
+    </SafeAreaProvider>
   );
 }

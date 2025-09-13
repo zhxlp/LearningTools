@@ -25,26 +25,35 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
-## Get a fresh project
+## 打包android
 
-When you're ready, run:
+生成android工程
 
-```bash
-npm run reset-project
+```
+npx expo prebuild -p android
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+生成证书
 
-## Learn more
+```
+keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug, OU=Android, O=Google, L=Mountain View, ST=California, C=US"
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+替换默认
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```
+cp debug.keystore android/app
+```
 
-## Join the community
 
-Join our community of developers creating universal apps.
+打包
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```
+cd android
+
+# 打包apk (app/build/outputs/apk/release/app-release.apk)
+./gradlew app:assembleRelease
+
+# 打包aab
+./gradlew app:bundleRelease
+```

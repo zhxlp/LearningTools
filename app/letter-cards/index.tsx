@@ -74,8 +74,9 @@ interface ILetterCard extends ILetterInfo {
 }
 
 const LetterCard: React.FC<ILetterCard> = ({ audio, letter, pronounce, play }) => {
-  const player = useAudioPlayer(audio, {});
+  const player = useAudioPlayer(audio);
   const { playing } = useAudioPlayerStatus(player);
+
   return (
     <TouchableOpacity
       style={styles.card}
@@ -107,7 +108,7 @@ export default function LetterCards() {
   }, [])
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.grid}>
           {LettersData.map((item) => (
@@ -125,7 +126,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
   },
   scrollContainer: {
-    padding: 10,
+    padding: 8,
   },
   grid: {
     flexDirection: "row",
@@ -134,11 +135,11 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: "white",
-    borderRadius: 10,
-    padding: 15,
-    margin: 5,
-    width: 100,
-    height: 120,
+    borderRadius: 8,
+    padding: 12,
+    margin: 4,
+    width: 90,
+    height: 110,
     justifyContent: "center",
     alignItems: "center",
     elevation: 2,
@@ -151,22 +152,22 @@ const styles = StyleSheet.create({
     shadowRadius: 1.41,
   },
   uppercase: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "bold",
-    marginBottom: 5,
+    marginBottom: 4,
   },
   lowercase: {
-    fontSize: 20,
-    marginBottom: 10,
+    fontSize: 18,
+    marginBottom: 8,
   },
   pronounceContainer: {
     backgroundColor: "#e3f2fd",
-    borderRadius: 15,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   pronounceText: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#1976d2",
     fontWeight: "500",
   },

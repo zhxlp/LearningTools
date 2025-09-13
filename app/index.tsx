@@ -19,7 +19,7 @@ export default function Index() {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <View style={styles.grid}>
         {apps.map((app) => (
           <TouchableOpacity
@@ -47,15 +47,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   appCard: {
     backgroundColor: "white",
-    borderRadius: 10,
-    padding: 20,
-    margin: 10,
-    width: 140,
-    height: 140,
+    borderRadius: 8,
+    padding: 16,
+    margin: 8,
+    width: 130,
+    height: 130,
     justifyContent: "center",
     alignItems: "center",
     elevation: 3,
@@ -68,11 +68,11 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
   },
   icon: {
-    fontSize: 48,
-    marginBottom: 10,
+    fontSize: 42,
+    marginBottom: 8,
   },
   appName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     textAlign: "center",
   },
