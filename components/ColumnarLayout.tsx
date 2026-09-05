@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Line, Svg, Text as SvgText } from 'react-native-svg';
 import { OP_SYMBOLS } from '../lib/math-types';
 import type { ColumnarStyle, OpType } from '../lib/math-types';
 
@@ -16,7 +16,11 @@ const RULE_HEIGHT = 2;
 const RULE_GAP = 6;
 // 行盒比字号略高，给字形一点余量，避免裁剪；行距已由 style.rowGap 单独控制。
 const ROW_LINE_PAD = 4;
+// 基线偏移量（占字号比例）：SVG 文字以基线定位，按此近似把字形在行盒内上下居中。
+const BASELINE_SHIFT = 0.35;
 
+// 用 SVG 渲染竖式：数字在各自固定格内按列中心对齐（无需等宽字体），
+// 与手写笔迹同为矢量，便于后续整板叠加/缩放回放。
 export default function ColumnarLayout(props: ColumnarLayoutProps): React.JSX.Element {
   const { a, b, op, style } = props;
 
@@ -27,9 +31,16 @@ export default function ColumnarLayout(props: ColumnarLayoutProps): React.JSX.El
   const digitColumns = totalCols - 1;
 
   const fontSize = style.digitSize;
-  // 每列横向节距 = 字格 + 列距；固定宽单元格保证同列数字严格上下对齐（无需等宽字体）。
+  // 每列横向节距 = 字格 + 列距；固定列中心保证同列数字严格上下对齐。
   const cellWidth = style.digitSize + style.colGap;
   const rowHeight = style.digitSize + ROW_LINE_PAD;
+
+  const svgWidth = totalCols * cellWidth;
+  // 纵向：顶行(行高) + rowGap + 底行(行高) + RULE_GAP + 横线 + 底部留空(fontSize)。
+  const topRowTop = 0;
+  const bottomRowTop = topRowTop + rowHeight + style.rowGap;
+  const ruleTop = bottomRowTop + rowHeight + RULE_GAP;
+  const svgHeight = ruleTop + RULE_HEIGHT + fontSize;
 
   // 右侧对齐：数字从右数第 i 位位于列 totalCols-1-i。
   const digitAt = (col: number, digits: string[]): string | null => {
@@ -37,66 +48,57 @@ export default function ColumnarLayout(props: ColumnarLayoutProps): React.JSX.El
     return idx >= 0 && idx < digits.length ? digits[idx] : null;
   };
 
-  const cell = (content: string | null, key: number): React.JSX.Element => (
-    <View
-      key={key}
-      style={{ width: cellWidth, height: rowHeight, alignItems: 'center', justifyContent: 'center' }}
-    >
-      {content === null ? null : (
-        <Text
-          style={{
-            fontSize,
-            lineHeight: rowHeight,
-            color: INK,
-            fontWeight: '600',
-            textAlign: 'center',
-            includeFontPadding: false,
-          }}
-        >
-          {content}
-        </Text>
-      )}
-    </View>
-  );
+  const glyphY = (centerY: number): number => centerY + fontSize * BASELINE_SHIFT;
 
-  const topCells = Array.from({ length: totalCols }, (_, col) => cell(digitAt(col, aDigits), col));
-  // 运算符占底行最左列；数字按同网格右对齐。
-  const bottomCells = Array.from({ length: totalCols }, (_, col) =>
-    cell(col === 0 ? OP_SYMBOLS[op] : digitAt(col, bDigits), col)
-  );
+  const topRow = Array.from({ length: totalCols }, (_, col) => {
+    const ch = digitAt(col, aDigits);
+    if (ch === null) return null;
+    return (
+      <SvgText
+        key={`t${col}`}
+        x={col * cellWidth + cellWidth / 2}
+        y={glyphY(rowHeight / 2)}
+        fontSize={fontSize}
+        fontWeight="600"
+        fill={INK}
+        textAnchor="middle"
+      >
+        {ch}
+      </SvgText>
+    );
+  });
+
+  const bottomRow = Array.from({ length: totalCols }, (_, col) => {
+    const ch = col === 0 ? OP_SYMBOLS[op] : digitAt(col, bDigits);
+    if (ch === null) return null;
+    return (
+      <SvgText
+        key={`b${col}`}
+        x={col * cellWidth + cellWidth / 2}
+        y={glyphY(bottomRowTop + rowHeight / 2)}
+        fontSize={fontSize}
+        fontWeight="600"
+        fill={INK}
+        textAnchor="middle"
+      >
+        {ch}
+      </SvgText>
+    );
+  });
 
   return (
-    <View style={styles.container}>
-      <View style={styles.row}>{topCells}</View>
-      <View style={{ height: style.rowGap }} />
-      <View style={styles.row}>{bottomCells}</View>
-      <View style={styles.ruleRow}>
-        {/* 跳过运算符列，横线只压在数字列网格上 */}
-        <View style={{ width: cellWidth }} />
-        <View
-          style={{
-            width: digitColumns * cellWidth,
-            height: RULE_HEIGHT,
-            backgroundColor: RULE_COLOR,
-          }}
-        />
-      </View>
-      {/* 横线下方留空，供手写结果 */}
-      <View style={{ height: fontSize }} />
-    </View>
+    <Svg width={svgWidth} height={svgHeight}>
+      {topRow}
+      {bottomRow}
+      {/* 跳过运算符列，横线只压在数字列网格上 */}
+      <Line
+        x1={cellWidth}
+        y1={ruleTop + RULE_HEIGHT / 2}
+        x2={cellWidth + digitColumns * cellWidth}
+        y2={ruleTop + RULE_HEIGHT / 2}
+        stroke={RULE_COLOR}
+        strokeWidth={RULE_HEIGHT}
+      />
+    </Svg>
   );
 }
-
-const styles = StyleSheet.create({
-  // 组件宽度由内容决定并在宿主 flex 容器中居中。
-  container: {
-    alignSelf: 'center',
-  },
-  row: {
-    flexDirection: 'row',
-  },
-  ruleRow: {
-    flexDirection: 'row',
-    marginTop: RULE_GAP,
-  },
-});
