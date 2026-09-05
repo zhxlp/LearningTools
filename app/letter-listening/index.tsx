@@ -194,6 +194,7 @@ export default function LetterListening() {
   const [letterCaseOption, setLetterCaseOption] = useState<LetterCaseOption>('uppercase');
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [sessionIncorrect, setSessionIncorrect] = useState(0);
+  const [streakCount, setStreakCount] = useState(0);
   const wrongPlayer = useAudioPlayer(audioWrong);
   const [showMathGate, setShowMathGate] = useState(false);
   const [gateQuestion, setGateQuestion] = useState<IGateQuestion | null>(null);
@@ -334,6 +335,7 @@ export default function LetterListening() {
     if (currentLetter && selectedLetter === currentLetter.letter) {
       // Correct selection
       setSessionCorrect(sessionCorrect + 1);
+      setStreakCount((count) => count + 1);
       updateQuizRecord(true, currentLetter.letter);
       setGameCompleted(true);
       // Automatically start a new game after a short delay
@@ -343,6 +345,7 @@ export default function LetterListening() {
       wrongPlayer.play();
       // Incorrect selection - show visual feedback
       setSessionIncorrect(sessionIncorrect + 1);
+      setStreakCount(0);
       updateQuizRecord(false, selectedLetter);
       setSelectedIncorrect(selectedLetter);
       // Clear the incorrect selection after a short delay
@@ -404,6 +407,7 @@ export default function LetterListening() {
           <Text style={styles.statsText}>本次答题: </Text>
           <Text style={[styles.statsText, styles.correctText]}>正确 {sessionCorrect}</Text>
           <Text style={[styles.statsText, styles.incorrectText]}>错误 {sessionIncorrect}</Text>
+          <Text style={[styles.statsText, styles.streakText]}>连续 {streakCount}</Text>
         </View>
 
         {/* Audio Player */}
@@ -660,6 +664,10 @@ const styles = StyleSheet.create({
   },
   incorrectText: {
     color: "#f44336",
+  },
+  streakText: {
+    color: "#ff9800",
+    fontWeight: "700",
   },
   playerContainer: {
     alignItems: "center",
