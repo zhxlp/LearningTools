@@ -3,6 +3,7 @@ import { Keyboard, Modal, StyleSheet, Text, TouchableOpacity, useWindowDimension
 
 import type { ColumnarStyle, MathQuestion, ParentalGateSettings } from '../lib/math-types';
 import { generateGateQuestion, loadParentalGateSettings } from '../lib/parental-gate';
+import { loadMathSettings, saveMathSettings } from '../lib/math-settings';
 import CalculationBoard from './CalculationBoard';
 
 export interface ParentalGateOverlayProps {
@@ -16,30 +17,29 @@ const INK_COLOR = '#222222';
 const MAX_ANSWER_LENGTH = 9;
 // 数字键仅提供 0-9，答案只允许数字。
 const DIGIT_ONLY = /^\d$/;
-// 家长验证盖层里印刷竖式的排版（略小于主界面，保证窄屏也能放下 4 位数字）。
-const GATE_COLUMNAR: ColumnarStyle = { digitSize: 34, rowGap: 12, colGap: 4 };
-// 窄屏（横屏下通常是首页竖屏拉起盖层）：改用更小竖式字号与比例右栏，避免 4 位数字溢出。
-const NARROW_COLUMNAR: ColumnarStyle = { digitSize: 22, rowGap: 8, colGap: 2 };
+// 竖式排版默认值（与主界面 mathTestSettings.columnarStyle 同源；载入后以存储值为准）。
+const DEFAULT_COLUMNAR: ColumnarStyle = { digitSize: 44, rowGap: 20, colGap: 6 };
 
 // 家长验证盖层：采用与计算测试主界面相同的答题面板（左侧题目+竖式印刷+手写区，
-// 右侧答案栏+虚拟数字键盘），布局由 CalculationBoard 统一提供。答对(onSuccess)/
-// 答错(换题或重试按全局设置)/关闭(onClose) 均由调用方接入，本组件只负责出题、判题与
-// 错误态（无音效）。盖层不开放就地排版，答错仅通过红字提示（feedback 恒为 idle）。
+// 右侧答案栏+虚拟数字键盘），布局由 CalculationBoard 统一提供；竖式排版就地可调，
+// 与主界面共用 mathTestSettings.columnarStyle 持久化。答对(onSuccess)/答错(换题或
+// 重试按全局设置)/关闭(onClose) 均由调用方接入，本组件只负责出题、判题与错误态（无音效）。
 export default function ParentalGateOverlay(props: ParentalGateOverlayProps): React.JSX.Element {
   const { visible, onSuccess, onClose } = props;
 
   const { width: winWidth } = useWindowDimensions();
-  // 窄窗（如首页竖屏拉起盖层）用更紧凑的竖式与右栏比例，宽窗用固定 296。
-  const narrow = winWidth < 700;
-  const columnar = narrow ? NARROW_COLUMNAR : GATE_COLUMNAR;
-  const rightWidth = narrow ? Math.max(190, Math.round(winWidth * 0.5)) : 296;
+  // 窄窗（如首页竖屏拉起盖层）用较窄右栏，给左侧竖式留更多宽度；宽窗固定 296。
+  const rightWidth = winWidth < 700 ? Math.max(190, Math.round(winWidth * 0.5)) : 296;
 
   const [settings, setSettings] = useState<ParentalGateSettings | null>(null);
   const [question, setQuestion] = useState<MathQuestion | null>(null);
   const [answer, setAnswer] = useState('');
   const [error, setError] = useState(false);
+  // 竖式排版与主界面共用同一个存储 key（mathTestSettings.columnarStyle），就地可调并持久化。
+  const [columnar, setColumnar] = useState<ColumnarStyle>(DEFAULT_COLUMNAR);
 
-  // 每次打开盖层时重新加载设置并生成新题，同时清空上次输入与错误态。
+  // 每次打开盖层时重新加载设置并生成新题，同时清空上次输入与错误态，
+  // 并同步主界面最新竖式排版。
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
@@ -52,6 +52,12 @@ export default function ParentalGateOverlay(props: ParentalGateOverlayProps): Re
       setSettings(loaded);
       setQuestion(generateGateQuestion(loaded));
     });
+    loadMathSettings()
+      .then((s) => {
+        if (cancelled) return;
+        setColumnar(s.columnarStyle);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -80,6 +86,19 @@ export default function ParentalGateOverlay(props: ParentalGateOverlayProps): Re
     if (settings.wrongAnswerMode === 'new') {
       setQuestion(generateGateQuestion(settings));
     }
+  };
+
+  const changeColumnar = (next: ColumnarStyle) => {
+    setColumnar(next);
+    // 即时重读存储再合并落盘，避免把其他设置项（题型/难度/答错行为）旧快照回写覆盖。
+    (async () => {
+      try {
+        const current = await loadMathSettings();
+        await saveMathSettings({ ...current, columnarStyle: next });
+      } catch {
+        // 落盘失败静默。
+      }
+    })();
   };
 
   const handleClose = () => {
@@ -122,6 +141,7 @@ export default function ParentalGateOverlay(props: ParentalGateOverlayProps): Re
             <CalculationBoard
               question={question}
               columnarStyle={columnar}
+              onColumnarStyleChange={changeColumnar}
               rightWidth={rightWidth}
               answer={answer}
               feedback="idle"
