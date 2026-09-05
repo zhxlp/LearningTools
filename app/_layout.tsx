@@ -60,6 +60,13 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="math-test/report"
+          options={{
+            title: '学习报表',
+            headerShown: true,
+          }}
+        />
+        <Stack.Screen
           name="settings"
           options={{
             title: '全局设置',
