@@ -4,8 +4,17 @@ import { PanResponder, StyleSheet, View } from 'react-native';
 import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native';
 import Svg, { Polyline } from 'react-native-svg';
 
+// 白板快照：采集时刻已提交笔迹 + 测量到的画布尺寸（坐标系=画布像素）。
+// 结构与内部 Stroke 相同（结构别名），便于外部以快照形状存盘。
+export interface DrawingPadSnapshot {
+  width: number;    // measured canvas width
+  height: number;   // measured canvas height
+  strokes: { points: string; color: string; width: number }[];
+}
+
 export interface DrawingPadHandle {
   clear: () => void;
+  getSnapshot: () => DrawingPadSnapshot | null;
 }
 
 export interface DrawingPadProps {
@@ -42,6 +51,8 @@ export const DrawingPad = forwardRef<DrawingPadHandle, DrawingPadProps>(
     });
     const sizeRef = useRef(size);
     const [strokes, setStrokes] = useState<Stroke[]>([]);
+    // 已提交笔迹的 ref 镜像：每次落笔/清空同步，保证快照读取时拿到的是最新值。
+    const strokesRef = useRef<Stroke[]>([]);
     // 正在画的那笔的点串；与 pointsRef 保持同步以便 release 回调能拿到最新值。
     const [activePoints, setActivePoints] = useState('');
 
@@ -63,9 +74,18 @@ export const DrawingPad = forwardRef<DrawingPadHandle, DrawingPadProps>(
     const clear = useCallback((): void => {
       pointsRef.current = '';
       setActivePoints('');
+      strokesRef.current = [];
       setStrokes([]);
     }, []);
-    useImperativeHandle(ref, () => ({ clear }), [clear]);
+
+    // 快照读取当前已提交笔迹与测量尺寸。画布尚未完成首次布局（尺寸为 0）时返回 null，
+    // 由宿主决定降级（如记空笔迹）。
+    const getSnapshot = useCallback((): DrawingPadSnapshot | null => {
+      const { width, height } = sizeRef.current;
+      if (width <= 0 || height <= 0) return null;
+      return { width, height, strokes: strokesRef.current };
+    }, []);
+    useImperativeHandle(ref, () => ({ clear, getSnapshot }), [clear, getSnapshot]);
 
     // PanResponder 只创建一次：手势回调全部经由 ref/setState，故不存在过期闭包。
     // 这样工具/颜色切换不会中断手势，也避免每次渲染重建响应器。
@@ -82,10 +102,10 @@ export const DrawingPad = forwardRef<DrawingPadHandle, DrawingPadProps>(
           return;
         }
         const style = activeStyleRef.current;
-        setStrokes((prev) => [
-          ...prev,
-          { points, color: style.color, width: style.width },
-        ]);
+        const stroke: Stroke = { points, color: style.color, width: style.width };
+        const next = [...strokesRef.current, stroke];
+        strokesRef.current = next;
+        setStrokes(next);
         pointsRef.current = '';
         setActivePoints('');
       };
