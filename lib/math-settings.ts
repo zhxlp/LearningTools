@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ALL_OPS,
   DEFAULT_MATH_SETTINGS,
+  ColumnarStyle,
   MathDifficulty,
   MathSettings,
   OpType,
@@ -87,6 +88,37 @@ export async function loadMathSettings(): Promise<MathSettings> {
     return sanitizeMathSettings(JSON.parse(stored));
   } catch {
     return freshDefaults();
+  }
+}
+
+// 手机端与平板端的竖式排版“首次默认值”应不同：以窗口短边区分设备形态，
+// 紧凑屏（手机）用更小的竖式字号/间隙，避免默认值在手机上显得过大。
+// 仅在“从未保存过设置”时生效；用户一旦调整（会写入存储）就以存储值为准。
+export function columnarDefaultForWindow(width: number, height: number): ColumnarStyle {
+  const shortSide = Math.min(width, height);
+  if (shortSide > 600) {
+    return { ...DEFAULT_MATH_SETTINGS.columnarStyle }; // 平板/大屏：字号44/行距20/列距6
+  }
+  return { digitSize: 30, rowGap: 14, colGap: 4 }; // 手机：紧凑默认
+}
+
+// 读取设置；若从未存储过（首次启动），则按设备尺寸给竖式排版一个合适的默认值，
+// 其余字段仍是默认。已有存储则原样读取（含用户调过的排版）。
+export async function loadMathSettingsForWindow(
+  width: number,
+  height: number
+): Promise<MathSettings> {
+  const withDeviceDefault = (): MathSettings => {
+    const out = sanitizeMathSettings(undefined);
+    out.columnarStyle = columnarDefaultForWindow(width, height);
+    return out;
+  };
+  try {
+    const stored = await AsyncStorage.getItem(MATH_SETTINGS_KEY);
+    if (stored == null) return withDeviceDefault();
+    return sanitizeMathSettings(JSON.parse(stored));
+  } catch {
+    return withDeviceDefault();
   }
 }
 

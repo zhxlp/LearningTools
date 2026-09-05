@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MathSettings, ALL_OPS } from '../lib/math-types';
-import { MATH_SETTINGS_KEY, sanitizeMathSettings, loadMathSettings, saveMathSettings } from '../lib/math-settings';
+import { MATH_SETTINGS_KEY, sanitizeMathSettings, loadMathSettings, loadMathSettingsForWindow, saveMathSettings } from '../lib/math-settings';
 
 const fullDefaults = (): MathSettings => ({
   enabledOps: ['+', '-'],
@@ -187,5 +187,28 @@ test('save then load round-trips sanitized settings', async () => {
       '*': { minDigits: 1, maxDigits: 2 },
       '÷': { minDigits: 1, maxDigits: 2 },
     },
+  });
+});
+
+describe('window-aware default columnar style', () => {
+  beforeEach(async () => {
+    await AsyncStorage.removeItem(MATH_SETTINGS_KEY);
+  });
+
+  test('no stored settings: phone window gets compact default, tablet window gets full default', async () => {
+    const phone = await loadMathSettingsForWindow(390, 844);
+    expect(phone.columnarStyle).toEqual({ digitSize: 30, rowGap: 14, colGap: 4 });
+
+    const tablet = await loadMathSettingsForWindow(1024, 768);
+    expect(tablet.columnarStyle).toEqual({ digitSize: 44, rowGap: 20, colGap: 6 });
+  });
+
+  test('stored settings win over the window default', async () => {
+    await AsyncStorage.setItem(
+      MATH_SETTINGS_KEY,
+      JSON.stringify({ columnarStyle: { digitSize: 52, rowGap: 30, colGap: 8 } })
+    );
+    const loaded = await loadMathSettingsForWindow(390, 844);
+    expect(loaded.columnarStyle).toEqual({ digitSize: 52, rowGap: 30, colGap: 8 });
   });
 });

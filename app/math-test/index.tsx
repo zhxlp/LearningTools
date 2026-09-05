@@ -4,7 +4,7 @@ import { type Href, useFocusEffect, useNavigation, useRouter } from 'expo-router
 import * as ScreenOrientation from 'expo-screen-orientation';
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import audioWrong from '../../assets/audio/game_wrong_choice.mp3';
@@ -12,7 +12,7 @@ import CalculationBoard, { type FeedbackState } from '../../components/Calculati
 import ParentalGateOverlay from '../../components/ParentalGateOverlay';
 import { type MathQuestion, type MathQuestionRecord, type MathRound, type MathSettings, type ColumnarStyle } from '../../lib/math-types';
 import { generateQuestionFromSettings } from '../../lib/math-question';
-import { loadMathSettings, saveMathSettings } from '../../lib/math-settings';
+import { loadMathSettings, loadMathSettingsForWindow, saveMathSettings } from '../../lib/math-settings';
 import { saveRound } from '../../lib/math-storage';
 
 // 配色沿用听力页/全局设置：白卡片、蓝 #1976d2 高亮、绿 #4CAF50、红 #f44336、连续橙 #ff9800。
@@ -100,7 +100,8 @@ export default function MathTestIndexScreen(): React.JSX.Element {
     useCallback(() => {
       let cancelled = false;
       (async () => {
-        const loaded = await loadMathSettings();
+        const win = Dimensions.get('window');
+        const loaded = await loadMathSettingsForWindow(win.width, win.height);
         if (cancelled) return;
         const firstReady = settingsRef.current == null;
         settingsRef.current = loaded;

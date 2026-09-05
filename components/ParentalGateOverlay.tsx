@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Keyboard, Modal, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 
 import type { ColumnarStyle, MathQuestion, ParentalGateSettings } from '../lib/math-types';
 import { generateGateQuestion, loadParentalGateSettings } from '../lib/parental-gate';
-import { loadMathSettings, saveMathSettings } from '../lib/math-settings';
+import { columnarDefaultForWindow, loadMathSettings, loadMathSettingsForWindow, saveMathSettings } from '../lib/math-settings';
 import CalculationBoard from './CalculationBoard';
 
 export interface ParentalGateOverlayProps {
@@ -17,8 +17,6 @@ const INK_COLOR = '#222222';
 const MAX_ANSWER_LENGTH = 9;
 // 数字键仅提供 0-9，答案只允许数字。
 const DIGIT_ONLY = /^\d$/;
-// 竖式排版默认值（与主界面 mathTestSettings.columnarStyle 同源；载入后以存储值为准）。
-const DEFAULT_COLUMNAR: ColumnarStyle = { digitSize: 44, rowGap: 20, colGap: 6 };
 
 // 家长验证盖层：采用与计算测试主界面相同的答题面板（左侧题目+竖式印刷+手写区，
 // 右侧答案栏+虚拟数字键盘），布局由 CalculationBoard 统一提供；竖式排版就地可调，
@@ -27,7 +25,10 @@ const DEFAULT_COLUMNAR: ColumnarStyle = { digitSize: 44, rowGap: 20, colGap: 6 }
 export default function ParentalGateOverlay(props: ParentalGateOverlayProps): React.JSX.Element {
   const { visible, onSuccess, onClose } = props;
 
-  const { width: winWidth } = useWindowDimensions();
+  const { width: winWidth, height: winHeight } = useWindowDimensions();
+  // 窗口尺寸镜像进 ref：排版默认/载入只需在打开盖层那一刻取值，不因尺寸变化重开盖层。
+  const dimsRef = useRef({ width: winWidth, height: winHeight });
+  dimsRef.current = { width: winWidth, height: winHeight };
   // 窄窗（如首页竖屏拉起盖层）用较窄右栏，给左侧竖式留更多宽度；宽窗固定 296。
   const rightWidth = winWidth < 700 ? Math.max(190, Math.round(winWidth * 0.5)) : 296;
 
@@ -36,7 +37,10 @@ export default function ParentalGateOverlay(props: ParentalGateOverlayProps): Re
   const [answer, setAnswer] = useState('');
   const [error, setError] = useState(false);
   // 竖式排版与主界面共用同一个存储 key（mathTestSettings.columnarStyle），就地可调并持久化。
-  const [columnar, setColumnar] = useState<ColumnarStyle>(DEFAULT_COLUMNAR);
+  // 无存储时（首启）按设备窗口取合适的默认字号：手机更小、平板/大屏为全尺寸。
+  const [columnar, setColumnar] = useState<ColumnarStyle>(() =>
+    columnarDefaultForWindow(winWidth, winHeight)
+  );
 
   // 每次打开盖层时重新加载设置并生成新题，同时清空上次输入与错误态，
   // 并同步主界面最新竖式排版。
@@ -52,7 +56,7 @@ export default function ParentalGateOverlay(props: ParentalGateOverlayProps): Re
       setSettings(loaded);
       setQuestion(generateGateQuestion(loaded));
     });
-    loadMathSettings()
+    loadMathSettingsForWindow(dimsRef.current.width, dimsRef.current.height)
       .then((s) => {
         if (cancelled) return;
         setColumnar(s.columnarStyle);
