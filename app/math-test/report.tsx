@@ -3,8 +3,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ALL_OPS, OP_SYMBOLS, type MathRound } from '../../lib/math-types';
+import { ALL_OPS, OP_SYMBOLS, type MathAttempt, type MathQuestionRecord, type MathRound } from '../../lib/math-types';
+import { computeResult } from '../../lib/math-question';
 import { accuracy, aggregateRounds, deleteRoundsSince, loadRoundsSince } from '../../lib/math-storage';
+import BoardReviewModal from '../../components/BoardReviewModal';
 
 // 报表窗口：近 3 个月。
 const WINDOW_MS = 90 * 24 * 3600 * 1000;
@@ -26,6 +28,10 @@ export default function MathTestReportScreen() {
   const [rounds, setRounds] = useState<MathRound[]>([]);
   const [ready, setReady] = useState(false);
   const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
+  // 展开查看某题逐次提交列表的 key（round.id:index:expr）。
+  const [openQuestionKey, setOpenQuestionKey] = useState<string | null>(null);
+  // 待回放白板的提交（含所属题目上下文）；非空时弹出回放弹层。
+  const [replay, setReplay] = useState<{ attempt: MathAttempt; q: MathQuestionRecord } | null>(null);
 
   // 近 3 个月总体聚合（空窗口也返回全 0 的 byOp）。
   const agg = useMemo(() => aggregateRounds(rounds), [rounds]);
@@ -37,6 +43,7 @@ export default function MathTestReportScreen() {
       loaded.sort((a, b) => new Date(b.firstAnswerAtISO).getTime() - new Date(a.firstAnswerAtISO).getTime());
       setRounds(loaded);
       setSelectedRoundId(null);
+      setOpenQuestionKey(null);
     } catch (error) {
       console.error('加载计算测试报表失败', error);
     } finally {
@@ -62,9 +69,15 @@ export default function MathTestReportScreen() {
     ]);
   };
 
-  // 点按切换轮次展开/收起。
+  // 点按切换轮次展开/收起；换轮次同时收起已展开的题目提交列表。
   const toggleRound = (id: string): void => {
+    setOpenQuestionKey(null);
     setSelectedRoundId((prev) => (prev === id ? null : id));
+  };
+
+  // 点按切换某题“逐次提交”列表展开/收起。
+  const toggleQuestion = (key: string): void => {
+    setOpenQuestionKey((prev) => (prev === key ? null : key));
   };
 
   return (
@@ -166,15 +179,86 @@ export default function MathTestReportScreen() {
                       {round.questions.length === 0 ? (
                         <Text style={styles.noDataText}>暂无题目记录</Text>
                       ) : (
-                        round.questions.map((q, index) => (
-                          <View key={`${q.expr}-${index}`} style={styles.tableRow}>
-                            <Text style={[styles.tableCell, styles.cellExpr]} numberOfLines={1}>
-                              {q.expr}
-                            </Text>
-                            <Text style={[styles.tableCell, styles.cellNum]}>{q.correct}</Text>
-                            <Text style={[styles.tableCell, styles.cellNum]}>{q.incorrect}</Text>
-                          </View>
-                        ))
+                        round.questions.map((q, index) => {
+                          const qkey = `${round.id}:${index}:${q.expr}`;
+                          // 该题逐次提交（新→旧）。旧记录无 attempts 字段 → 空列表，不提供展开。
+                          const rawAttempts = q.attempts ?? [];
+                          const attempts = rawAttempts.length
+                            ? [...rawAttempts].sort(
+                                (x, y) => new Date(y.atISO).getTime() - new Date(x.atISO).getTime()
+                              )
+                            : [];
+                          const questionOpen = openQuestionKey === qkey;
+                          const cells = (
+                            <>
+                              <Text style={[styles.tableCell, styles.cellExpr]} numberOfLines={1}>
+                                {q.expr}
+                              </Text>
+                              <Text style={[styles.tableCell, styles.cellNum]}>{q.correct}</Text>
+                              <Text style={[styles.tableCell, styles.cellNum]}>{q.incorrect}</Text>
+                            </>
+                          );
+                          return (
+                            <View key={`${q.expr}-${index}`}>
+                              {attempts.length > 0 ? (
+                                <TouchableOpacity
+                                  style={[
+                                    styles.tableRow,
+                                    styles.questionRow,
+                                    questionOpen && styles.questionRowOpen,
+                                  ]}
+                                  onPress={() => toggleQuestion(qkey)}
+                                  accessibilityRole="button"
+                                >
+                                  {cells}
+                                </TouchableOpacity>
+                              ) : (
+                                <View style={styles.tableRow}>{cells}</View>
+                              )}
+                              {questionOpen && (
+                                <View style={styles.attemptBlock}>
+                                  {attempts.map((att, ai) => (
+                                    <View
+                                      key={`${att.atISO}-${ai}`}
+                                      style={styles.attemptRow}
+                                    >
+                                      <Text style={styles.attemptTime}>
+                                        {fmtTime(att.atISO)}
+                                      </Text>
+                                      <Text style={styles.attemptBody}>
+                                        提交{' '}
+                                        <Text style={styles.attemptSubmitted}>
+                                          {att.submitted}
+                                        </Text>{' '}
+                                        <Text
+                                          style={
+                                            att.isCorrect
+                                              ? styles.attemptMarkCorrect
+                                              : styles.attemptMarkWrong
+                                          }
+                                        >
+                                          {att.isCorrect ? '✓' : '✗'}
+                                        </Text>
+                                      </Text>
+                                      {att.strokes.length > 0 && (
+                                        <TouchableOpacity
+                                          style={styles.reviewButton}
+                                          onPress={() => setReplay({ attempt: att, q })}
+                                          accessibilityRole="button"
+                                          accessibilityLabel="查看白板"
+                                        >
+                                          <Text style={styles.reviewButtonText}>
+                                            查看白板
+                                          </Text>
+                                        </TouchableOpacity>
+                                      )}
+                                    </View>
+                                  ))}
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })
                       )}
                     </View>
                   )}
@@ -184,6 +268,20 @@ export default function MathTestReportScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* 白板回放：点“查看白板”挂载的全屏弹层 */}
+      {replay != null && (
+        <BoardReviewModal
+          visible
+          onClose={() => setReplay(null)}
+          expr={replay.q.expr}
+          a={replay.q.a}
+          b={replay.q.b}
+          op={replay.q.op}
+          expectedResult={computeResult(replay.q.a, replay.q.b, replay.q.op)}
+          attempt={replay.attempt}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -337,5 +435,60 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#999999',
     padding: 16,
+  },
+  questionRow: {
+    backgroundColor: '#ffffff',
+  },
+  questionRowOpen: {
+    backgroundColor: '#e3f2fd',
+  },
+  attemptBlock: {
+    backgroundColor: '#f7fafc',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eeeeee',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  attemptRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e6e6e6',
+  },
+  attemptTime: {
+    fontSize: 13,
+    color: '#555555',
+    marginRight: 10,
+    fontVariant: ['tabular-nums'],
+  },
+  attemptBody: {
+    flex: 1,
+    fontSize: 13,
+    color: '#333333',
+  },
+  attemptSubmitted: {
+    fontWeight: '700',
+    color: '#1976d2',
+  },
+  attemptMarkCorrect: {
+    fontWeight: '700',
+    color: '#4CAF50',
+  },
+  attemptMarkWrong: {
+    fontWeight: '700',
+    color: '#f44336',
+  },
+  reviewButton: {
+    backgroundColor: '#1976d2',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginLeft: 8,
+  },
+  reviewButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
