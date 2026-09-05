@@ -136,8 +136,14 @@ export default function SettingsPage() {
   return (
     <View style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* 计算类型 */}
+        {/* 家长验证设置：归组说明，以下参数控制“进入设置前的计算验证” */}
         <View style={styles.card}>
+          <Text style={styles.groupTitle}>家长验证</Text>
+          <Text style={styles.groupHint}>
+            听力测试、计算测试等页面的「设置」入口会先弹出一道计算题，答对才能进入。
+            下面的 计算类型 / 位数难度 / 答错后 都是针对这道验证题的设置。
+          </Text>
+
           <Text style={styles.sectionTitle}>计算类型</Text>
           <View style={styles.chipRow}>
             {ALL_OPS.map((op) => (
@@ -149,10 +155,9 @@ export default function SettingsPage() {
               />
             ))}
           </View>
-        </View>
 
-        {/* 位数难度 */}
-        <View style={styles.card}>
+          <View style={styles.divider} />
+
           <Text style={styles.sectionTitle}>位数难度</Text>
           <View style={styles.digitsRow}>
             <View style={styles.digitCol}>
@@ -172,10 +177,9 @@ export default function SettingsPage() {
               </View>
             </View>
           </View>
-        </View>
 
-        {/* 答错后 */}
-        <View style={styles.card}>
+          <View style={styles.divider} />
+
           <Text style={styles.sectionTitle}>答错后</Text>
           <View style={styles.radioGroup}>
             {WRONG_MODE_OPTIONS.map((opt) => {
@@ -231,6 +235,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 12,
+  },
+  groupTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1976d2',
+    marginBottom: 6,
+  },
+  groupHint: {
+    fontSize: 12,
+    color: '#777',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  divider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e0e0e0',
+    marginVertical: 16,
   },
   chipRow: {
     flexDirection: 'row',
