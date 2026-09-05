@@ -46,6 +46,13 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="math-test/index"
+          options={{
+            title: '计算测试',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
           name="settings"
           options={{
             title: '全局设置',
