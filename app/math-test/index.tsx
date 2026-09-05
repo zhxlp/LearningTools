@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   leftPanel: {
-    flex: 3,
+    flex: 1,
     marginRight: 10,
   },
   iconButton: {
@@ -681,7 +681,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   rightPanel: {
-    flex: 2,
+    width: 296,
   },
   answerBox: {
     height: 62,
