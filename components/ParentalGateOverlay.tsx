@@ -14,7 +14,7 @@ export interface ParentalGateOverlayProps {
 const ACCENT = '#1976d2';
 const ERROR_COLOR = '#d32f2f';
 const INK_COLOR = '#222222';
-const MAX_ANSWER_LENGTH = 6;
+const MAX_ANSWER_LENGTH = 9;
 // 家长验证题目（任务一阶段为固定简单算式）。数字键仅提供 0-9，答案只允许数字。
 const DIGIT_ONLY = /^\d$/;
 
