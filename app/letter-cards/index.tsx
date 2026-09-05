@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import WifiSoundWave from "../../components/WifiSoundWave";
 
 // 导入所有字母音频文件
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import audioA from "../../assets/audio/letters/a.mp3";
 import audioB from "../../assets/audio/letters/b.mp3";
 import audioC from "../../assets/audio/letters/c.mp3";
@@ -73,6 +73,16 @@ interface ILetterCard extends ILetterInfo {
   play: (player: AudioPlayer) => void
 }
 
+// Fisher-Yates shuffle algorithm
+const shuffleArray = (array: ILetterInfo[]) => {
+  const newArray = [...array];
+  for (let i = newArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+  }
+  return newArray;
+};
+
 const LetterCard: React.FC<ILetterCard> = ({ audio, letter, pronounce, play }) => {
   const player = useAudioPlayer(audio);
   const { playing } = useAudioPlayerStatus(player);
@@ -96,7 +106,11 @@ const LetterCard: React.FC<ILetterCard> = ({ audio, letter, pronounce, play }) =
 
 
 
+type DisplayMode = 'sequential' | 'random';
+
 export default function LetterCards() {
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('sequential');
+  const [shuffledLetters, setShuffledLetters] = useState<ILetterInfo[]>(LettersData);
   const lastPlayPlayerRef = useRef<AudioPlayer>(null);
   const play = useCallback((player: AudioPlayer) => {
     if (lastPlayPlayerRef.current?.playing) {
@@ -107,11 +121,36 @@ export default function LetterCards() {
     player.play();
   }, [])
 
+  const handleShuffle = useCallback(() => {
+    const shuffled = shuffleArray(LettersData);
+    setShuffledLetters(shuffled);
+    setDisplayMode('random');
+  }, []);
+
+  const handleSequential = useCallback(() => {
+    setShuffledLetters(LettersData);
+    setDisplayMode('sequential');
+  }, []);
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={[styles.modeButton, displayMode === 'sequential' && styles.activeModeButton]} 
+          onPress={handleSequential}
+        >
+          <Text style={[styles.modeButtonText, displayMode === 'sequential' && styles.activeModeButtonText]}>顺序</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.modeButton, displayMode === 'random' && styles.activeModeButton]} 
+          onPress={handleShuffle}
+        >
+          <Text style={[styles.modeButtonText, displayMode === 'random' && styles.activeModeButtonText]}>随机</Text>
+        </TouchableOpacity>
+      </View>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.grid}>
-          {LettersData.map((item) => (
+          {shuffledLetters.map((item) => (
             <LetterCard key={item.letter} {...item} play={play} />
           ))}
         </View>
@@ -124,6 +163,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  modeButton: {
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    minWidth: 60,
+    alignItems: "center",
+    marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: "#1976d2",
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+  },
+  activeModeButton: {
+    backgroundColor: "#1976d2",
+    borderColor: "#1976d2",
+  },
+  modeButtonText: {
+    color: "#1976d2",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  activeModeButtonText: {
+    color: "white",
   },
   scrollContainer: {
     padding: 8,
