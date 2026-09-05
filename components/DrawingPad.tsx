@@ -1,0 +1,173 @@
+import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { PanResponder, StyleSheet, View } from 'react-native';
+import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native';
+import Svg, { Polyline } from 'react-native-svg';
+
+export interface DrawingPadHandle {
+  clear: () => void;
+}
+
+export interface DrawingPadProps {
+  tool: 'pen' | 'eraser';
+  penColor?: string;
+  canvasColor?: string;
+  children?: ReactNode;
+}
+
+// 画笔/橡皮颜色与线宽常量。橡皮不“删除”已有笔画，而是在最上层用画布色
+// 画一道宽笔触盖住下方笔画（白板擦除）；下方印刷的竖式图层从不被修改。
+const PEN_COLOR = '#1a237e';
+const PEN_WIDTH = 4;
+const CANVAS_COLOR = '#ffffff';
+const ERASER_COLOR = '#ffffff';
+const ERASER_WIDTH = 18;
+
+// 一条已完成笔画：points 为 SVG polyline 点串（“x,y x,y …”）。
+type Stroke = { points: string; color: string; width: number };
+
+const clampCoord = (value: number, max: number): number =>
+  Math.min(Math.max(value, 0), max);
+
+export const DrawingPad = forwardRef<DrawingPadHandle, DrawingPadProps>(
+  (props, ref): React.JSX.Element => {
+    const { canvasColor, children } = props;
+
+    // 宿主在 onLayout 里量出自身尺寸；尺寸同时入 state（驱动 Svg 渲染）与 ref
+    // （供只创建一次的 PanResponder 读取最新边界做坐标钳制）。
+    const [size, setSize] = useState<{ width: number; height: number }>({
+      width: 0,
+      height: 0,
+    });
+    const sizeRef = useRef(size);
+    const [strokes, setStrokes] = useState<Stroke[]>([]);
+    // 正在画的那笔的点串；与 pointsRef 保持同步以便 release 回调能拿到最新值。
+    const [activePoints, setActivePoints] = useState('');
+
+    const handleLayout = (e: LayoutChangeEvent): void => {
+      const { width, height } = e.nativeEvent.layout;
+      sizeRef.current = { width, height };
+      setSize({ width, height });
+    };
+
+    // 当前 props/尺寸的“最新值”镜像，避免一次性创建的 PanResponder 闭包过期。
+    const propsRef = useRef(props);
+    propsRef.current = props;
+    const pointsRef = useRef('');
+    const activeStyleRef = useRef<{ color: string; width: number }>({
+      color: PEN_COLOR,
+      width: PEN_WIDTH,
+    });
+
+    const clear = useCallback((): void => {
+      pointsRef.current = '';
+      setActivePoints('');
+      setStrokes([]);
+    }, []);
+    useImperativeHandle(ref, () => ({ clear }), [clear]);
+
+    // PanResponder 只创建一次：手势回调全部经由 ref/setState，故不存在过期闭包。
+    // 这样工具/颜色切换不会中断手势，也避免每次渲染重建响应器。
+    const panResponder = useMemo(() => {
+      const pointAt = (evt: GestureResponderEvent): string => {
+        const { width, height } = sizeRef.current;
+        const x = clampCoord(evt.nativeEvent.locationX, width);
+        const y = clampCoord(evt.nativeEvent.locationY, height);
+        return `${x},${y}`;
+      };
+      const finishStroke = (): void => {
+        const points = pointsRef.current;
+        if (points === '') {
+          return;
+        }
+        const style = activeStyleRef.current;
+        setStrokes((prev) => [
+          ...prev,
+          { points, color: style.color, width: style.width },
+        ]);
+        pointsRef.current = '';
+        setActivePoints('');
+      };
+      return PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (evt: GestureResponderEvent) => {
+          const p = propsRef.current;
+          const erasing = p.tool === 'eraser';
+          activeStyleRef.current = {
+            color: erasing
+              ? (p.canvasColor ?? ERASER_COLOR)
+              : (p.penColor ?? PEN_COLOR),
+            width: erasing ? ERASER_WIDTH : PEN_WIDTH,
+          };
+          pointsRef.current = pointAt(evt);
+          setActivePoints(pointsRef.current);
+        },
+        onPanResponderMove: (evt: GestureResponderEvent) => {
+          pointsRef.current = `${pointsRef.current} ${pointAt(evt)}`.trim();
+          setActivePoints(pointsRef.current);
+        },
+        onPanResponderRelease: finishStroke,
+        onPanResponderTerminate: finishStroke,
+      });
+    }, []);
+
+    return (
+      <View
+        style={{ backgroundColor: canvasColor ?? CANVAS_COLOR }}
+        onLayout={handleLayout}
+        collapsable={false}
+      >
+        {children}
+        {size.width > 0 && size.height > 0 && (
+          <View style={styles.overlay} {...panResponder.panHandlers}>
+            <Svg
+              width={size.width}
+              height={size.height}
+              style={styles.svg}
+              pointerEvents="none"
+            >
+              {strokes.map((stroke, index) => (
+                <Polyline
+                  key={index}
+                  points={stroke.points}
+                  stroke={stroke.color}
+                  strokeWidth={stroke.width}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ))}
+              {activePoints !== '' && (
+                <Polyline
+                  points={activePoints}
+                  stroke={activeStyleRef.current.color}
+                  strokeWidth={activeStyleRef.current.width}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              )}
+            </Svg>
+          </View>
+        )}
+      </View>
+    );
+  }
+);
+
+DrawingPad.displayName = 'DrawingPad';
+
+const styles = StyleSheet.create({
+  // 覆盖层盖住整块画布，作为唯一的手势接收面；Svg 关闭 pointerEvents，
+  // 使 locationX/Y 相对覆盖层（即相对画布原点）解析。
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+  },
+  svg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+});

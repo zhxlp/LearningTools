@@ -43,7 +43,8 @@
     "@react-native-community/slider": "5.0.1",
     "expo-localization": "~17.0.7",
     "expo-updates": "~29.0.10",
-    "expo-build-properties": "~1.0.8"
+    "expo-build-properties": "~1.0.8",
+    "react-native-svg": "15.12.1"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
@@ -56,7 +57,9 @@
   },
   "jest": {
     "preset": "jest-expo",
-    "setupFiles": ["<rootDir>/jest.setup.js"]
+    "setupFiles": [
+      "<rootDir>/jest.setup.js"
+    ]
   },
   "private": true
 }
