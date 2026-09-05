@@ -143,9 +143,11 @@ export default function MathTestIndexScreen(): React.JSX.Element {
     }, [presentNext])
   );
 
-  // 离开页面（真正 pop 掉本屏；push settings/report 不会触发）时结算保存本轮。
-  const saveRoundRef = useRef<() => void>(() => {});
-  const buildAndSaveRound = (): void => {
+  // 本轮保存（幂等：轮 id=本轮开始时间戳，多次写入同一 key，后写覆盖先写）：
+  // 既用于离开页面时结算（fire-and-forget），也用于“点报告”前先把当前进度落盘，
+  // 这样报告一进入就能看到本轮刚提交的记录，无需先退出再回来。
+  const saveRoundRef = useRef<() => Promise<void>>(async () => {});
+  const persistRound = async (): Promise<void> => {
     // 0 次提交 → 不保存：以“是否提交过”为准（仅答错的 retry 轮无 records 也必须保存）。
     if (firstAnswerAtISO == null) return;
     const questions = [...records];
@@ -171,17 +173,18 @@ export default function MathTestIndexScreen(): React.JSX.Element {
       incorrect: sessionIncorrect,
       questions,
     };
-    saveRound(round)
-      .then(() => pruneRoundsOlderThan(Date.now(), 90 * 24 * 3600 * 1000))
-      .catch(() => {
-        // 落盘/过期裁剪失败静默：不阻塞返回导航。
-      });
+    try {
+      await saveRound(round);
+      await pruneRoundsOlderThan(Date.now(), 90 * 24 * 3600 * 1000);
+    } catch {
+      // 落盘/过期裁剪失败静默：不阻塞返回/跳转。
+    }
   };
-  saveRoundRef.current = buildAndSaveRound;
+  saveRoundRef.current = persistRound;
 
   useEffect(() => {
     const unsub = navigation.addListener('beforeRemove', () => {
-      saveRoundRef.current();
+      void saveRoundRef.current();
     });
     return unsub;
   }, [navigation]);
@@ -305,7 +308,11 @@ export default function MathTestIndexScreen(): React.JSX.Element {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={() => router.push('/math-test/report' as Href)}
+              onPress={async () => {
+                // 先落盘当前轮次进度（含刚提交的记录），再进报表，确保报表立即可见本轮。
+                await saveRoundRef.current();
+                router.push('/math-test/report' as Href);
+              }}
               accessibilityRole="button"
               accessibilityLabel="学习报表"
             >
