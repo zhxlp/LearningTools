@@ -18,6 +18,7 @@ export interface CalculationBoardProps {
   feedback: FeedbackState;
   error?: string | null;                     // 如 答案错误，请重试：在答案栏下方红字提示
   emptyPlaceholder?: string;                 // answer==='' 且 feedback==='idle' 时显示；默认 '?'
+  rightWidth?: number;                       // 右栏宽度；默认 296（窄屏/竖屏盖层可用比例值）
   onDigit: (d: string) => void;
   onBackspace: () => void;
   onSubmit: () => void;
@@ -91,6 +92,7 @@ export default function CalculationBoard(props: CalculationBoardProps): React.JS
     feedback,
     error,
     emptyPlaceholder,
+    rightWidth,
     onDigit,
     onBackspace,
     onSubmit,
@@ -225,7 +227,7 @@ export default function CalculationBoard(props: CalculationBoardProps): React.JS
       </View>
 
       {/* ===== 右侧：答案栏 + 数字键盘 ===== */}
-      <View style={styles.rightPanel}>
+      <View style={[styles.rightPanel, rightWidth != null && { width: rightWidth }]}>
         <View
           style={[
             styles.answerBox,

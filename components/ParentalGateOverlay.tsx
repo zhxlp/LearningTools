@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Keyboard, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Keyboard, Modal, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 
 import type { ColumnarStyle, MathQuestion, ParentalGateSettings } from '../lib/math-types';
 import { generateGateQuestion, loadParentalGateSettings } from '../lib/parental-gate';
@@ -18,6 +18,8 @@ const MAX_ANSWER_LENGTH = 9;
 const DIGIT_ONLY = /^\d$/;
 // 家长验证盖层里印刷竖式的排版（略小于主界面，保证窄屏也能放下 4 位数字）。
 const GATE_COLUMNAR: ColumnarStyle = { digitSize: 34, rowGap: 12, colGap: 4 };
+// 窄屏（横屏下通常是首页竖屏拉起盖层）：改用更小竖式字号与比例右栏，避免 4 位数字溢出。
+const NARROW_COLUMNAR: ColumnarStyle = { digitSize: 22, rowGap: 8, colGap: 2 };
 
 // 家长验证盖层：采用与计算测试主界面相同的答题面板（左侧题目+竖式印刷+手写区，
 // 右侧答案栏+虚拟数字键盘），布局由 CalculationBoard 统一提供。答对(onSuccess)/
@@ -25,6 +27,12 @@ const GATE_COLUMNAR: ColumnarStyle = { digitSize: 34, rowGap: 12, colGap: 4 };
 // 错误态（无音效）。盖层不开放就地排版，答错仅通过红字提示（feedback 恒为 idle）。
 export default function ParentalGateOverlay(props: ParentalGateOverlayProps): React.JSX.Element {
   const { visible, onSuccess, onClose } = props;
+
+  const { width: winWidth } = useWindowDimensions();
+  // 窄窗（如首页竖屏拉起盖层）用更紧凑的竖式与右栏比例，宽窗用固定 296。
+  const narrow = winWidth < 700;
+  const columnar = narrow ? NARROW_COLUMNAR : GATE_COLUMNAR;
+  const rightWidth = narrow ? Math.max(190, Math.round(winWidth * 0.5)) : 296;
 
   const [settings, setSettings] = useState<ParentalGateSettings | null>(null);
   const [question, setQuestion] = useState<MathQuestion | null>(null);
@@ -113,7 +121,8 @@ export default function ParentalGateOverlay(props: ParentalGateOverlayProps): Re
           ) : (
             <CalculationBoard
               question={question}
-              columnarStyle={GATE_COLUMNAR}
+              columnarStyle={columnar}
+              rightWidth={rightWidth}
               answer={answer}
               feedback="idle"
               error={error ? '答案错误，请重试' : null}
