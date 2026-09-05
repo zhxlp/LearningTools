@@ -370,12 +370,14 @@ export default function MathTestIndexScreen(): React.JSX.Element {
                 <View style={styles.padArea} onLayout={onPadAreaLayout}>
                   {padArea.width > 0 && padArea.height > 0 && (
                     <DrawingPad ref={padRef} tool={tool} canvasColor="#ffffff">
+                      {/* 竖式水平居中、垂直靠上，顶部仅留约 2 个数字高度的内边距；
+                          下方留出大片空白供手写竖式过程 */}
                       <View
                         style={{
                           width: padArea.width,
                           height: padArea.height,
                           alignItems: 'center',
-                          justifyContent: 'center',
+                          paddingTop: columnarStyle.digitSize * 2,
                         }}
                       >
                         <ColumnarLayout

@@ -15,8 +15,9 @@ export interface DrawingPadProps {
   children?: ReactNode;
 }
 
-// 画笔/橡皮颜色与线宽常量。橡皮不“删除”已有笔画，而是在最上层用画布色
-// 画一道宽笔触盖住下方笔画（白板擦除）；下方印刷的竖式图层从不被修改。
+// 画笔/橡皮颜色与线宽常量。橡皮不“删除”已有笔画，而是在笔画层上画一道
+// 画布色粗笔触盖住下方笔迹（白板擦除）。印刷内容（children，即竖式）始终渲染在
+// 笔画层之上，因此橡皮/画笔都不可能盖住或擦掉印刷的竖式。
 const PEN_COLOR = '#1a237e';
 const PEN_WIDTH = 4;
 const CANVAS_COLOR = '#ffffff';
@@ -118,7 +119,7 @@ export const DrawingPad = forwardRef<DrawingPadHandle, DrawingPadProps>(
         onLayout={handleLayout}
         collapsable={false}
       >
-        {children}
+        {/* 笔画层先渲染（在底）；children（印刷竖式）后渲染（在上） */}
         {size.width > 0 && size.height > 0 && (
           <View style={styles.overlay} {...panResponder.panHandlers}>
             <Svg
@@ -151,6 +152,12 @@ export const DrawingPad = forwardRef<DrawingPadHandle, DrawingPadProps>(
             </Svg>
           </View>
         )}
+        {/* 印刷内容后渲染（在上）、留在普通文档流里以支撑容器尺寸；不拦截触摸：
+            橡皮的白色粗笔触只能覆盖其下的笔迹，永远盖不住竖式；
+            pointerEvents="none" 让触摸穿透到下方（先渲染）的覆盖层。 */}
+        <View pointerEvents="none">
+          {children}
+        </View>
       </View>
     );
   }
