@@ -48,6 +48,9 @@ interface ILetterInfo {
 // 字母显示选项枚举
 type LetterCaseOption = 'uppercase' | 'lowercase' | 'both' | 'mixed';
 
+// 答错反馈音模式
+type WrongFeedbackMode = 'error' | 'letter';
+
 // 答题记录数据结构
 interface IQuizRecord {
   date: string; // YYYY-MM-DD
@@ -196,6 +199,8 @@ export default function LetterListening() {
   const [sessionIncorrect, setSessionIncorrect] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
   const wrongPlayer = useAudioPlayer(audioWrong);
+  const feedbackPlayer = useAudioPlayer(audioA);
+  const [wrongFeedbackMode, setWrongFeedbackMode] = useState<WrongFeedbackMode>('error');
   const [showMathGate, setShowMathGate] = useState(false);
   const [gateQuestion, setGateQuestion] = useState<IGateQuestion | null>(null);
   const [mathInput, setMathInput] = useState("");
@@ -215,15 +220,20 @@ export default function LetterListening() {
     try {
       const savedOptionCount = await AsyncStorage.getItem('letterListeningOptionCount');
       const savedLetterCaseOption = await AsyncStorage.getItem('letterListeningLetterCaseOption');
-      
+      const savedWrongFeedback = await AsyncStorage.getItem('letterListeningWrongFeedback');
+
       if (savedOptionCount) {
         setOptionCount(parseInt(savedOptionCount));
       }
-      
+
       if (savedLetterCaseOption) {
         setLetterCaseOption(savedLetterCaseOption as LetterCaseOption);
       }
-      
+
+      if (savedWrongFeedback === 'error' || savedWrongFeedback === 'letter') {
+        setWrongFeedbackMode(savedWrongFeedback);
+      }
+
       startNewGame(parseInt(savedOptionCount || '') || 5);
     } catch (error) {
       console.error("Error loading settings:", error);
@@ -232,12 +242,14 @@ export default function LetterListening() {
   };
 
 
-  const saveSettings = async (count: number, letterCase: LetterCaseOption) => {
+  const saveSettings = async (count: number, letterCase: LetterCaseOption, wrongFeedback: WrongFeedbackMode) => {
     try {
       await AsyncStorage.setItem('letterListeningOptionCount', count.toString());
       await AsyncStorage.setItem('letterListeningLetterCaseOption', letterCase);
+      await AsyncStorage.setItem('letterListeningWrongFeedback', wrongFeedback);
       setOptionCount(count);
       setLetterCaseOption(letterCase);
+      setWrongFeedbackMode(wrongFeedback);
       startNewGame(count);
     } catch (error) {
       console.error("Error saving settings:", error);
@@ -341,8 +353,21 @@ export default function LetterListening() {
       // Automatically start a new game after a short delay
       setTimeout(() => startNewGame(), 1000);
     } else {
-      wrongPlayer.seekTo(0);
-      wrongPlayer.play();
+      // 答错反馈音：错误提示音 或 所点字母的发音
+      if (wrongFeedbackMode === 'letter') {
+        const clicked = LettersData.find((l) => l.letter === selectedLetter);
+        if (clicked) {
+          feedbackPlayer.replace(clicked.audio);
+          feedbackPlayer.seekTo(0);
+          feedbackPlayer.play();
+        } else {
+          wrongPlayer.seekTo(0);
+          wrongPlayer.play();
+        }
+      } else {
+        wrongPlayer.seekTo(0);
+        wrongPlayer.play();
+      }
       // Incorrect selection - show visual feedback
       setSessionIncorrect(sessionIncorrect + 1);
       setStreakCount(0);
@@ -576,10 +601,40 @@ export default function LetterListening() {
               </View>
             </View>
 
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>答错反馈:</Text>
+              <View style={styles.optionButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    wrongFeedbackMode === 'error' && styles.selectedOptionButton
+                  ]}
+                  onPress={() => setWrongFeedbackMode('error')}
+                >
+                  <Text style={[
+                    styles.optionButtonText,
+                    wrongFeedbackMode === 'error' && styles.selectedOptionButtonText
+                  ]}>错误音</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    wrongFeedbackMode === 'letter' && styles.selectedOptionButton
+                  ]}
+                  onPress={() => setWrongFeedbackMode('letter')}
+                >
+                  <Text style={[
+                    styles.optionButtonText,
+                    wrongFeedbackMode === 'letter' && styles.selectedOptionButtonText
+                  ]}>字母发音</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             <TouchableOpacity
               style={styles.saveButton}
               onPress={() => {
-                saveSettings(optionCount, letterCaseOption);
+                saveSettings(optionCount, letterCaseOption, wrongFeedbackMode);
                 setShowSettings(false);
               }}
             >
