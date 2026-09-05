@@ -1,10 +1,13 @@
 import { Text, View, TouchableOpacity, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { Stack, useRouter } from "expo-router";
+import { useState } from "react";
 import { MaterialIcons } from '@expo/vector-icons';
+import ParentalGateOverlay from "../components/ParentalGateOverlay";
 
 export default function Index() {
   const router = useRouter();
+  const [gateVisible, setGateVisible] = useState(false);
 
   const apps = [
     {
@@ -26,13 +29,21 @@ export default function Index() {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      {/* Settings Button */}
-      <TouchableOpacity
-        style={styles.settingsButton}
-        onPress={() => router.push('/settings')}
-      >
-        <MaterialIcons name="settings" size={24} color="#1976d2" />
-      </TouchableOpacity>
+      {/* 右上角 header 的设置入口：需先过家长验证再进入全局设置 */}
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => setGateVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="全局设置"
+            >
+              <MaterialIcons name="settings" size={24} color="#1976d2" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
 
       <View style={styles.grid}>
         {apps.map((app) => (
@@ -46,6 +57,15 @@ export default function Index() {
           </TouchableOpacity>
         ))}
       </View>
+
+      <ParentalGateOverlay
+        visible={gateVisible}
+        onClose={() => setGateVisible(false)}
+        onSuccess={() => {
+          setGateVisible(false);
+          router.push('/settings');
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -54,7 +74,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
-    position: "relative",
+  },
+  headerButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
   },
   grid: {
     flexDirection: "row",
@@ -63,24 +86,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 44,
-  },
-  settingsButton: {
-    position: "absolute",
-    top: 0,
-    right: 12,
-    zIndex: 10,
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 8,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.22,
-    shadowRadius: 2.22,
   },
   appCard: {
     backgroundColor: "white",
