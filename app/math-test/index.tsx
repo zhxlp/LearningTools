@@ -8,12 +8,12 @@ import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import audioWrong from '../../assets/audio/game_wrong_choice.mp3';
-import CalculationBoard, { type FeedbackState } from '../../components/CalculationBoard';
+import { CalculationBoard, type CalculationBoardHandle, type FeedbackState } from '../../components/CalculationBoard';
 import ParentalGateOverlay from '../../components/ParentalGateOverlay';
-import { type MathQuestion, type MathQuestionRecord, type MathRound, type MathSettings, type ColumnarStyle } from '../../lib/math-types';
+import { type MathAttempt, type MathQuestion, type MathQuestionRecord, type MathRound, type MathSettings, type ColumnarStyle } from '../../lib/math-types';
 import { generateQuestionFromSettings } from '../../lib/math-question';
 import { loadMathSettings, loadMathSettingsForWindow, saveMathSettings } from '../../lib/math-settings';
-import { saveRound } from '../../lib/math-storage';
+import { pruneRoundsOlderThan, saveRound } from '../../lib/math-storage';
 
 // 配色沿用听力页/全局设置：白卡片、蓝 #1976d2 高亮、绿 #4CAF50、红 #f44336、连续橙 #ff9800。
 const ACCENT = '#1976d2';
@@ -34,6 +34,8 @@ export default function MathTestIndexScreen(): React.JSX.Element {
   const wrongPlayer = useAudioPlayer(audioWrong);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 白板审查：答题面板 ref，每次提交时经它抓取当前手写板快照。
+  const boardRef = useRef<CalculationBoardHandle>(null);
   // 当前展示的题是否已落盘（答对关闭，或 new 换题作废）。true 期间离开不再补记该题。
   const currentRecordedRef = useRef(false);
   // 最新已载入的设置快照。出题与答错判定始终读本 ref（每次获得焦点都会刷新），
@@ -60,6 +62,12 @@ export default function MathTestIndexScreen(): React.JSX.Element {
   const [records, setRecords] = useState<MathQuestionRecord[]>([]);
   const [firstAnswerAtISO, setFirstAnswerAtISO] = useState<string | null>(null);
 
+  // 白板审查：当前开放题的提交 attempts。attemptsRef 为真相源——每次提交同步写入，
+  // 供同一渲染/回调里立即取到完整列表并嵌入 MathQuestionRecord 落盘；state 仅随
+  // presentNext 复位（本屏不渲染该列表，无需读取 state 值）。
+  const attemptsRef = useRef<MathAttempt[]>([]);
+  const [, setAttempts] = useState<MathAttempt[]>([]);
+
   const [gateVisible, setGateVisible] = useState(false);
 
   const clearPendingTimer = (): void => {
@@ -75,6 +83,8 @@ export default function MathTestIndexScreen(): React.JSX.Element {
     const current = settingsRef.current;
     if (!current) return;
     currentRecordedRef.current = false; // 新题重新武装“未落盘”状态
+    attemptsRef.current = []; // 白板审查：新题的 attempt 列表复位
+    setAttempts([]);
     const q = generateQuestionFromSettings(current.enabledOps, current.difficulty);
     setQuestion(q);
     setQStartedAtISO(new Date().toISOString());
@@ -83,6 +93,24 @@ export default function MathTestIndexScreen(): React.JSX.Element {
     setFeedback('idle');
     setBusy(false);
   }, []);
+
+  // 白板审查：记录一次提交（对/错皆记）。先于清空答案调用；快照取整板当前笔迹与
+  // 画布尺寸，竖式排版取提交时刻的 columnarStyle 副本。同步写 ref 后同帧立即可读。
+  const pushAttempt = (submitted: string, isCorrect: boolean): void => {
+    const snapshot = boardRef.current?.getBoardSnapshot();
+    const attempt: MathAttempt = {
+      atISO: new Date().toISOString(),
+      isCorrect,
+      submitted,
+      canvasWidth: snapshot?.width ?? 0,
+      canvasHeight: snapshot?.height ?? 0,
+      columnarStyle: { ...columnarStyle },
+      strokes: snapshot ? snapshot.strokes : [],
+    };
+    const next = [...attemptsRef.current, attempt];
+    attemptsRef.current = next;
+    setAttempts(next);
+  };
 
   // 挂载：锁横屏；卸载：解锁、清计时器。设置载入与首题改由焦点回调负责，避免首屏双跑。
   useEffect(() => {
@@ -132,6 +160,7 @@ export default function MathTestIndexScreen(): React.JSX.Element {
         correct: 0,
         incorrect: wrongs,
         startedAtISO: qStartedAtISO,
+        attempts: attemptsRef.current, // 白板审查：随开放记录带上全部提交
       });
     }
     const round: MathRound = {
@@ -142,9 +171,11 @@ export default function MathTestIndexScreen(): React.JSX.Element {
       incorrect: sessionIncorrect,
       questions,
     };
-    saveRound(round).catch(() => {
-      // 落盘失败静默：不阻塞返回导航。
-    });
+    saveRound(round)
+      .then(() => pruneRoundsOlderThan(Date.now(), 90 * 24 * 3600 * 1000))
+      .catch(() => {
+        // 落盘/过期裁剪失败静默：不阻塞返回导航。
+      });
   };
   saveRoundRef.current = buildAndSaveRound;
 
@@ -163,6 +194,7 @@ export default function MathTestIndexScreen(): React.JSX.Element {
   // 答对：首答即对连续 +1；关闭当前题记录（correct:1, incorrect:本题答错数）。
   const handleCorrect = (): void => {
     if (!question || !qStartedAtISO) return;
+    pushAttempt(answer, true); // 白板审查：先抓本次提交快照再清空答案
     setBusy(true);
     setFeedback('correct');
     setAnswer('');
@@ -178,6 +210,7 @@ export default function MathTestIndexScreen(): React.JSX.Element {
       incorrect: wrongs,
       startedAtISO: qStartedAtISO,
       answeredAtISO: new Date().toISOString(),
+      attempts: attemptsRef.current,
     };
     setRecords((prev) => [...prev, record]);
     currentRecordedRef.current = true; // 本题已关闭落盘，出下一题前离开不再补记
@@ -190,6 +223,7 @@ export default function MathTestIndexScreen(): React.JSX.Element {
   // 答错：错误数 +1、连续归零、红闪 + 音效；new → 本题作废写开放记录并出下一题；retry → 保留本题。
   const handleWrong = (): void => {
     if (!question || !qStartedAtISO) return;
+    pushAttempt(answer, false); // 白板审查：先抓本次提交快照再清空答案（retry 累加到开放题）
     setFeedback('wrong');
     setAnswer('');
     playWrong();
@@ -207,6 +241,7 @@ export default function MathTestIndexScreen(): React.JSX.Element {
         correct: 0,
         incorrect: nextWrongs,
         startedAtISO: qStartedAtISO,
+        attempts: attemptsRef.current,
       };
       setRecords((prev) => [...prev, record]);
       currentRecordedRef.current = true; // 本题已作废落盘，出下一题前离开不再补记
@@ -294,6 +329,7 @@ export default function MathTestIndexScreen(): React.JSX.Element {
             </View>
           ) : (
             <CalculationBoard
+              ref={boardRef}
               question={question}
               columnarStyle={columnarStyle}
               onColumnarStyleChange={(s) => changeColumnarStyle(s)}
