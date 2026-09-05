@@ -5,7 +5,7 @@ import { AudioSource, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useRouter } from "expo-router";
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect, useState } from "react";
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import WifiSoundWave from "../../components/WifiSoundWave";
 
@@ -60,6 +60,26 @@ interface IQuizRecord {
     }
   };
 }
+
+// 家长验证计算题数据结构
+interface IGateQuestion {
+  a: number;
+  b: number;
+  op: '+' | '-';
+  result: number;
+}
+
+// 生成一道 4 位数加减法计算题（减法结果恒为非负）
+const generateMathQuestion = (): IGateQuestion => {
+  const a = 1000 + Math.floor(Math.random() * 9000);
+  const b = 1000 + Math.floor(Math.random() * 9000);
+  if (Math.random() < 0.5) {
+    return { a, b, op: '+', result: a + b };
+  }
+  const hi = Math.max(a, b);
+  const lo = Math.min(a, b);
+  return { a: hi, b: lo, op: '-', result: hi - lo };
+};
 
 // Letter audio data
 const LettersData: ILetterInfo[] = [
@@ -175,6 +195,10 @@ export default function LetterListening() {
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [sessionIncorrect, setSessionIncorrect] = useState(0);
   const wrongPlayer = useAudioPlayer(audioWrong);
+  const [showMathGate, setShowMathGate] = useState(false);
+  const [gateQuestion, setGateQuestion] = useState<IGateQuestion | null>(null);
+  const [mathInput, setMathInput] = useState("");
+  const [mathError, setMathError] = useState(false);
 
 
   useEffect(() => {
@@ -328,13 +352,41 @@ export default function LetterListening() {
     }
   };
 
+  const handleGateVerify = () => {
+    if (!gateQuestion) return;
+    const answer = parseInt(mathInput, 10);
+    if (Number.isNaN(answer)) return;
+
+    if (answer === gateQuestion.result) {
+      Keyboard.dismiss();
+      setMathInput("");
+      setMathError(false);
+      setShowMathGate(false);
+      setShowSettings(true);
+    } else {
+      setMathError(true);
+      setMathInput("");
+      setGateQuestion(generateMathQuestion());
+    }
+  };
+
+  const handleCloseGate = () => {
+    Keyboard.dismiss();
+    setShowMathGate(false);
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom', 'left', 'right']}>
       <View style={styles.container}>
         {/* Settings Button */}
         <TouchableOpacity
           style={styles.settingsButton}
-          onPress={() => setShowSettings(true)}
+          onPress={() => {
+            setGateQuestion(generateMathQuestion());
+            setMathInput("");
+            setMathError(false);
+            setShowMathGate(true);
+          }}
         >
           <MaterialIcons name="settings" size={24} color="#1976d2" />
         </TouchableOpacity>
@@ -372,6 +424,60 @@ export default function LetterListening() {
           ))}
         </View>
       </View>
+
+      {/* Math Gate Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showMathGate}
+        onRequestClose={handleCloseGate}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>家长验证</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={handleCloseGate}
+              >
+                <MaterialIcons name="close" size={24} color="#1976d2" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.gateHint}>请先完成计算，答对后才能进入设置：</Text>
+            {gateQuestion && (
+              <Text style={styles.gateQuestion}>
+                {gateQuestion.a} {gateQuestion.op} {gateQuestion.b} = ?
+              </Text>
+            )}
+            <TextInput
+              style={styles.gateInput}
+              keyboardType="number-pad"
+              maxLength={5}
+              autoFocus
+              value={mathInput}
+              onChangeText={(text) => {
+                setMathInput(text.replace(/[^0-9]/g, ""));
+                if (mathError) setMathError(false);
+              }}
+              placeholder="请输入答案"
+              placeholderTextColor="#aaa"
+            />
+            {mathError && (
+              <Text style={styles.gateError}>答案错误，请重试</Text>
+            )}
+            <TouchableOpacity
+              style={styles.gateVerifyButton}
+              onPress={handleGateVerify}
+            >
+              <Text style={styles.gateVerifyButtonText}>验证</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Settings Modal */}
       <Modal
@@ -648,6 +754,46 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 4,
+  },
+  gateHint: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  gateQuestion: {
+    fontSize: 30,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 16,
+    color: "#333",
+  },
+  gateInput: {
+    borderWidth: 1,
+    borderColor: "#1976d2",
+    borderRadius: 6,
+    padding: 10,
+    fontSize: 20,
+    textAlign: "center",
+    marginBottom: 12,
+    color: "#333",
+  },
+  gateError: {
+    color: "#f44336",
+    textAlign: "center",
+    marginBottom: 8,
+    fontSize: 14,
+  },
+  gateVerifyButton: {
+    backgroundColor: "#1976d2",
+    borderRadius: 4,
+    padding: 10,
+    alignItems: "center",
+  },
+  gateVerifyButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
   },
   settingRow: {
     flexDirection: "row",
