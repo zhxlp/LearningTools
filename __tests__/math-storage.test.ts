@@ -6,6 +6,7 @@ import {
   saveRound,
   loadRoundsSince,
   deleteRoundsSince,
+  pruneRoundsOlderThan,
   sumRound,
   aggregateRounds,
   Aggregates,
@@ -118,6 +119,41 @@ describe('deleteRoundsSince', () => {
     expect(await AsyncStorage.getItem(roundKey('1'))).toBeTruthy();
     expect(await AsyncStorage.getItem(roundKey('2'))).toBeNull();
     expect(await AsyncStorage.getItem('unrelatedSettings')).toBeTruthy();
+  });
+});
+
+describe('pruneRoundsOlderThan', () => {
+  test('removes only round keys older than the cutoff; newer and unrelated keys survive', async () => {
+    // 轮次 id 为开轮毫秒时间戳。now=100, cutoff=40 → 截止线 60；id<60 的老轮被清。
+    await AsyncStorage.setItem(roundKey('50'), JSON.stringify(round('50')));
+    await AsyncStorage.setItem(roundKey('59'), JSON.stringify(round('59')));
+    await AsyncStorage.setItem(roundKey('60'), JSON.stringify(round('60')));
+    await AsyncStorage.setItem(roundKey('120'), JSON.stringify(round('120')));
+    await AsyncStorage.setItem('unrelatedSettings', JSON.stringify({ keep: true }));
+
+    await pruneRoundsOlderThan(100, 40);
+
+    expect(await AsyncStorage.getItem(roundKey('50'))).toBeNull();
+    expect(await AsyncStorage.getItem(roundKey('59'))).toBeNull();
+    expect(await AsyncStorage.getItem(roundKey('60'))).toBeTruthy();
+    expect(await AsyncStorage.getItem(roundKey('120'))).toBeTruthy();
+    expect(await AsyncStorage.getItem('unrelatedSettings')).toBeTruthy();
+  });
+
+  test('leaves non-numeric round keys and unrelated keys untouched', async () => {
+    await AsyncStorage.setItem(roundKey('abc'), JSON.stringify(round('abc')));
+    await AsyncStorage.setItem('otherKey', 'x');
+
+    await pruneRoundsOlderThan(100, 0);
+
+    expect(await AsyncStorage.getItem(roundKey('abc'))).toBeTruthy();
+    expect(await AsyncStorage.getItem('otherKey')).toBeTruthy();
+  });
+
+  test('is a no-op when nothing round-like is stored', async () => {
+    await AsyncStorage.setItem('settings', '{}');
+    await pruneRoundsOlderThan(Date.now(), 1000);
+    expect(await AsyncStorage.getItem('settings')).toBe('{}');
   });
 });
 

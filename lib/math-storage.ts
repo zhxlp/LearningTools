@@ -63,6 +63,20 @@ export async function deleteRoundsSince(nowMs: number, windowMs: number): Promis
   }
 }
 
+// 删除轮次 key `calcRound_${id}` 中数字 id 早于 `nowMs - cutoffMs` 的（即开轮距今超过 cutoffMs）。
+// 只在保存轮次的顺路里机会式清理，静默失败；id 非数字的 key 一律跳过。
+export async function pruneRoundsOlderThan(nowMs: number, cutoffMs: number): Promise<void> {
+  const deadline = nowMs - cutoffMs;
+  const allKeys = await AsyncStorage.getAllKeys();
+  for (const key of allKeys) {
+    if (!key.startsWith(ROUND_KEY_PREFIX)) continue;
+    const idMs = Number(key.slice(ROUND_KEY_PREFIX.length));
+    if (Number.isFinite(idMs) && idMs < deadline) {
+      await AsyncStorage.removeItem(key);
+    }
+  }
+}
+
 export function sumRound(r: MathRound): { correct: number; incorrect: number } {
   let correct = 0;
   let incorrect = 0;
