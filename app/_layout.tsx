@@ -38,12 +38,19 @@ export default function RootLayout() {
             headerShown: false,
           }} 
         />
-        <Stack.Screen 
-          name="letter-listening/report" 
-          options={{ 
+        <Stack.Screen
+          name="letter-listening/report"
+          options={{
             title: '学习报表',
             headerShown: true,
-          }} 
+          }}
+        />
+        <Stack.Screen
+          name="settings"
+          options={{
+            title: '全局设置',
+            headerShown: true,
+          }}
         />
       </Stack>
     </SafeAreaProvider>
