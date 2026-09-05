@@ -1,6 +1,7 @@
 import { Text, View, TouchableOpacity, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { MaterialIcons } from '@expo/vector-icons';
 
 export default function Index() {
   const router = useRouter();
@@ -16,10 +17,23 @@ export default function Index() {
       name: "字母听力测试",
       icon: "🎧",
     },
+    {
+      id: "math-test",
+      name: "计算测试",
+      icon: "🧮",
+    },
   ];
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+      {/* Settings Button */}
+      <TouchableOpacity
+        style={styles.settingsButton}
+        onPress={() => router.push('/settings')}
+      >
+        <MaterialIcons name="settings" size={24} color="#1976d2" />
+      </TouchableOpacity>
+
       <View style={styles.grid}>
         {apps.map((app) => (
           <TouchableOpacity
@@ -40,6 +54,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
+    position: "relative",
   },
   grid: {
     flexDirection: "row",
@@ -48,6 +63,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
     paddingHorizontal: 16,
+    paddingTop: 44,
+  },
+  settingsButton: {
+    position: "absolute",
+    top: 0,
+    right: 12,
+    zIndex: 10,
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 8,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
   },
   appCard: {
     backgroundColor: "white",
