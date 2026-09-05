@@ -60,3 +60,13 @@ export function generateQuestionFromSettings(
   const op = enabledOps[Math.floor(Math.random() * enabledOps.length)];
   return generateQuestion(op, difficulty[op]);
 }
+
+// 四则精确结果。除法由出题保证整除（integer-exact），此处直接返回商。
+export function computeResult(a: number, b: number, op: OpType): number {
+  switch (op) {
+    case '+': return a + b;
+    case '-': return a - b;
+    case '*': return a * b;
+    case '÷': return a / b;
+  }
+}

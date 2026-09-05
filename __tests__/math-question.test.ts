@@ -1,4 +1,4 @@
-import { generateQuestion, generateQuestionFromSettings } from '../lib/math-question';
+import { computeResult, generateQuestion, generateQuestionFromSettings } from '../lib/math-question';
 
 const digitsOf = (n: number) => String(Math.abs(n)).length;
 
@@ -41,4 +41,32 @@ test('generates from enabled ops only', () => {
     const q = generateQuestionFromSettings(['+', '-'], { '+': { minDigits: 1, maxDigits: 2 }, '-': { minDigits: 1, maxDigits: 2 }, '*': { minDigits: 1, maxDigits: 1 }, '÷': { minDigits: 1, maxDigits: 1 } });
     expect(['+', '-']).toContain(q.op);
   }
+});
+
+describe('computeResult', () => {
+  test('matches exact arithmetic for each op', () => {
+    expect(computeResult(23, 45, '+')).toBe(68);
+    expect(computeResult(100, 37, '-')).toBe(63);
+    expect(computeResult(12, 8, '*')).toBe(96);
+    expect(computeResult(84, 7, '÷')).toBe(12);
+  });
+
+  test('division is integer-exact for evenly divisible operands', () => {
+    for (let i = 0; i < 300; i++) {
+      const a = 1 + Math.floor(Math.random() * 999);
+      const q = 1 + Math.floor(Math.random() * 99);
+      const n = a * q;
+      expect(computeResult(n, q, '÷')).toBe(a);
+      expect(Number.isInteger(computeResult(n, q, '÷'))).toBe(true);
+    }
+  });
+
+  test('matches generateQuestion results across generated questions', () => {
+    for (const op of ['+', '-', '*', '÷'] as const) {
+      for (let i = 0; i < 100; i++) {
+        const q = generateQuestion(op, { minDigits: 1, maxDigits: 3 });
+        expect(computeResult(q.a, q.b, q.op)).toBe(q.result);
+      }
+    }
+  });
 });
