@@ -87,6 +87,8 @@ export default function MathTestIndexScreen(): React.JSX.Element {
 
   const padRef = useRef<DrawingPadHandle | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 当前展示的题是否已落盘（答对关闭，或 new 换题作废）。true 期间离开不再补记该题。
+  const currentRecordedRef = useRef(false);
 
   // 轮次起点：进入页面即开始一轮；离开页面（unmount/返回）才结算保存。
   const [roundStartedMs] = useState<number>(() => Date.now());
@@ -125,6 +127,7 @@ export default function MathTestIndexScreen(): React.JSX.Element {
   // 出下一题：换题目、清手写、复位本题状态。settings 已在载入后保证非空。
   const presentNext = (): void => {
     if (!settings) return;
+    currentRecordedRef.current = false; // 新题重新武装“未落盘”状态
     const q = generateQuestionFromSettings(settings.enabledOps, settings.difficulty);
     setQuestion(q);
     setQStartedAtISO(new Date().toISOString());
@@ -157,11 +160,12 @@ export default function MathTestIndexScreen(): React.JSX.Element {
   // 离开页面（真正 pop 掉本屏；push settings/report 不会触发）时结算保存本轮。
   const saveRoundRef = useRef<() => void>(() => {});
   const buildAndSaveRound = (): void => {
-    if (records.length === 0) return; // 0 次提交 → 不保存
-    if (!firstAnswerAtISO) return;
+    // 0 次提交 → 不保存：以“是否提交过”为准（仅答错的 retry 轮无 records 也必须保存）。
+    if (firstAnswerAtISO == null) return;
     const questions = [...records];
-    // 收尾时当前题若已答错过但未答对（retry 仍在重试），以开放记录随轮保存。
-    if (question && wrongs > 0) {
+    // 收尾时：当前题已答错（wrongs>0）但尚未落盘（未答对关闭、也未被 new 换题作废），
+    // 以开放记录随轮保存，避免该轮答错数据丢失；已落盘的题不重复补记。
+    if (question && wrongs > 0 && !currentRecordedRef.current) {
       questions.push({
         a: question.a,
         b: question.b,
@@ -218,6 +222,7 @@ export default function MathTestIndexScreen(): React.JSX.Element {
       answeredAtISO: new Date().toISOString(),
     };
     setRecords((prev) => [...prev, record]);
+    currentRecordedRef.current = true; // 本题已关闭落盘，出下一题前离开不再补记
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       presentNext();
@@ -246,6 +251,7 @@ export default function MathTestIndexScreen(): React.JSX.Element {
         startedAtISO: qStartedAtISO,
       };
       setRecords((prev) => [...prev, record]);
+      currentRecordedRef.current = true; // 本题已作废落盘，出下一题前离开不再补记
       setBusy(true);
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
