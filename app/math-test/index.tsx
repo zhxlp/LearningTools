@@ -330,9 +330,8 @@ export default function MathTestIndexScreen(): React.JSX.Element {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom', 'left', 'right']}>
       <View style={styles.container}>
-        {/* ===== 左屏：头部 + 白板 ===== */}
-        <View style={styles.leftPanel}>
-          <View style={styles.headerRow}>
+        {/* ===== 上部分：设置 / 报告 / 本次答题计数 ===== */}
+        <View style={styles.topBar}>
             <TouchableOpacity
               style={styles.iconButton}
               onPress={() => setGateVisible(true)}
@@ -355,9 +354,12 @@ export default function MathTestIndexScreen(): React.JSX.Element {
               <Text style={[styles.statsValue, styles.incorrectText]}>错误 {sessionIncorrect}</Text>
               <Text style={[styles.statsValue, styles.streakText]}>连续 {streak}</Text>
             </View>
-          </View>
+        </View>
 
-          <View style={styles.board}>
+        {/* ===== 下部分：左右面板 ===== */}
+        <View style={styles.contentRow}>
+          <View style={styles.leftPanel}>
+            <View style={styles.board}>
             {notReady ? (
               <View style={styles.loadingWrap}>
                 <Text style={styles.loadingText}>加载中……</Text>
@@ -483,6 +485,7 @@ export default function MathTestIndexScreen(): React.JSX.Element {
             />
           </View>
         </View>
+        </View>
       </View>
 
       <ParentalGateOverlay
@@ -504,17 +507,21 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: 'column',
     padding: 8,
   },
-  leftPanel: {
-    flex: 1,
-    marginRight: 10,
-  },
-  headerRow: {
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  contentRow: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  leftPanel: {
+    flex: 3,
+    marginRight: 10,
   },
   iconButton: {
     width: 38,
@@ -531,10 +538,9 @@ const styles = StyleSheet.create({
     shadowRadius: 2.22,
   },
   statsPill: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    marginLeft: 'auto',
     backgroundColor: '#ffffff',
     borderRadius: 19,
     paddingHorizontal: 12,
@@ -675,7 +681,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   rightPanel: {
-    width: 296,
+    flex: 2,
   },
   answerBox: {
     height: 62,
