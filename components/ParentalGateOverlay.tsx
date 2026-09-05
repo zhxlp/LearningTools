@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Keyboard, Modal, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 import type { ColumnarStyle, MathQuestion, ParentalGateSettings } from '../lib/math-types';
 import { generateGateQuestion, loadParentalGateSettings } from '../lib/parental-gate';
@@ -91,6 +92,45 @@ export default function ParentalGateOverlay(props: ParentalGateOverlayProps): Re
       setQuestion(generateGateQuestion(settings));
     }
   };
+
+  // 打开盖层即临时锁定横屏（竖屏来源如首页设置入口也会旋转过来），关闭时还原：
+  // 来源本已是横屏（听力/计算页锁横屏）则重新锁横屏；竖屏来源则解锁回到竖屏。
+  const wasLandscapeRef = useRef(false);
+  useEffect(() => {
+    if (!visible) return;
+    let active = true;
+    wasLandscapeRef.current = false;
+    (async () => {
+      let wasLandscape = false;
+      try {
+        const o = await ScreenOrientation.getOrientationAsync();
+        wasLandscape =
+          o === ScreenOrientation.Orientation.LANDSCAPE_LEFT ||
+          o === ScreenOrientation.Orientation.LANDSCAPE_RIGHT;
+      } catch {
+        // 读失败按“非横屏”处理：关闭时回到竖屏。
+      }
+      if (!active) {
+        // 读取尚未完成就已被关闭：按刚读到的来源恢复。
+        if (wasLandscape) {
+          ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+        } else {
+          ScreenOrientation.unlockAsync().catch(() => {});
+        }
+        return;
+      }
+      wasLandscapeRef.current = wasLandscape;
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+    })();
+    return () => {
+      active = false;
+      if (wasLandscapeRef.current) {
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+      } else {
+        ScreenOrientation.unlockAsync().catch(() => {});
+      }
+    };
+  }, [visible]);
 
   const changeColumnar = (next: ColumnarStyle) => {
     setColumnar(next);
