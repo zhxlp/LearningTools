@@ -19,10 +19,25 @@ export interface ParentalGateSettings {
 
 export interface MathQuestion { a: number; b: number; op: OpType; expr: string; result: number; }
 
+// 一条矢量笔迹：points 为 SVG polyline 点串（“x,y x,y …”），坐标系=采集时的画布。
+export interface BoardStroke { points: string; color: string; width: number; }
+
+// 一次答案提交时抓取的白板快照：印刷竖式上下文 + 笔迹 + 提交结果。
+export interface MathAttempt {
+  atISO: string;          // 该次提交时间
+  isCorrect: boolean;     // 对错
+  submitted: string;      // 儿童敲入的答案
+  canvasWidth: number;    // 采集时手写板像素宽
+  canvasHeight: number;   // 采集时手写板像素高
+  columnarStyle: ColumnarStyle;  // 当时印刷竖式的排版
+  strokes: BoardStroke[]; // 矢量笔迹（坐标系=canvas）
+}
+
 export interface MathQuestionRecord {
   a: number; b: number; op: OpType; expr: string;
   correct: number; incorrect: number;
   startedAtISO: string; answeredAtISO?: string;
+  attempts?: MathAttempt[];  // 旧记录缺省该字段：凡聚合一律忽略
 }
 
 export interface MathRound {
