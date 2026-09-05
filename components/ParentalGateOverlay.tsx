@@ -5,7 +5,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import type { ColumnarStyle, MathQuestion, ParentalGateSettings } from '../lib/math-types';
 import { generateGateQuestion, loadParentalGateSettings } from '../lib/parental-gate';
 import { columnarDefaultForWindow, loadMathSettings, loadMathSettingsForWindow, saveMathSettings } from '../lib/math-settings';
-import CalculationBoard from './CalculationBoard';
+import { CalculationBoard } from './CalculationBoard';
 
 export interface ParentalGateOverlayProps {
   visible: boolean;

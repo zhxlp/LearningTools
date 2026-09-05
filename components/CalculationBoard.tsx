@@ -1,11 +1,11 @@
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 
 import type { ColumnarStyle, MathQuestion } from '../lib/math-types';
 import ColumnarLayout from './ColumnarLayout';
-import { DrawingPad, type DrawingPadHandle } from './DrawingPad';
+import { DrawingPad, type DrawingPadHandle, type DrawingPadSnapshot } from './DrawingPad';
 import NumberKeypad from './NumberKeypad';
 
 export type FeedbackState = 'idle' | 'correct' | 'wrong';
@@ -23,6 +23,11 @@ export interface CalculationBoardProps {
   onBackspace: () => void;
   onSubmit: () => void;
   submitDisabled: boolean;
+}
+
+// 宿主可经 ref 取当前手写板快照（已提交笔迹 + 画布尺寸），用于每次提交的落盘。
+export interface CalculationBoardHandle {
+  getBoardSnapshot: () => DrawingPadSnapshot | null;
 }
 
 // 配色沿用计算测试主界面：白卡片、蓝 #1976d2 高亮、绿 #4CAF50、红 #f44336。
@@ -82,8 +87,12 @@ function Stepper(props: StepperProps): React.JSX.Element {
 
 // 计算测试答题面板：左侧题面 + 印刷竖式 + 手写白板 + 工具栏（＋可选就地排版），
 // 右侧答案栏（含反馈配色/错误提示）+ 数字键盘。供计算测试主界面与家长验证盖层复用，
-// 视觉与主界面当前左右分屏保持一致。
-export default function CalculationBoard(props: CalculationBoardProps): React.JSX.Element {
+// 视觉与主界面当前左右分屏保持一致。forwardRef 暴露取板快照句柄给调用方落盘。
+export const CalculationBoard = forwardRef<CalculationBoardHandle, CalculationBoardProps>(
+  function CalculationBoard(
+    props: CalculationBoardProps,
+    ref: React.Ref<CalculationBoardHandle>
+  ): React.JSX.Element {
   const {
     question,
     columnarStyle,
@@ -107,6 +116,9 @@ export default function CalculationBoard(props: CalculationBoardProps): React.JS
   const effectiveRightWidth = rightWidth ?? (compact ? 248 : 296);
 
   const padRef = useRef<DrawingPadHandle | null>(null);
+  // 宿主经 ref 取整板快照：直接委托内部 DrawingPad 的 getSnapshot。
+  const getBoardSnapshot = useCallback((): DrawingPadSnapshot | null => padRef.current?.getSnapshot() ?? null, []);
+  useImperativeHandle(ref, () => ({ getBoardSnapshot }), [getBoardSnapshot]);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const [styleOpen, setStyleOpen] = useState(false);
   // 手写板实际尺寸（宿主测量后让 DrawingPad 填满整块画区，墨迹区大于印刷竖式）。
@@ -280,7 +292,12 @@ export default function CalculationBoard(props: CalculationBoardProps): React.JS
       </View>
     </View>
   );
-}
+  }
+);
+
+CalculationBoard.displayName = 'CalculationBoard';
+
+export default CalculationBoard;
 
 const styles = StyleSheet.create({
   row: {
