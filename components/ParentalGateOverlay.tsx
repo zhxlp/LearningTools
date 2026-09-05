@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Keyboard, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import type { LayoutChangeEvent } from 'react-native';
 
-import type { MathQuestion, ParentalGateSettings } from '../lib/math-types';
+import type { ColumnarStyle, MathQuestion, ParentalGateSettings } from '../lib/math-types';
 import { generateGateQuestion, loadParentalGateSettings } from '../lib/parental-gate';
+import { DrawingPad, type DrawingPadHandle } from './DrawingPad';
+import ColumnarLayout from './ColumnarLayout';
 import NumberKeypad from './NumberKeypad';
 
 export interface ParentalGateOverlayProps {
@@ -15,12 +18,14 @@ const ACCENT = '#1976d2';
 const ERROR_COLOR = '#d32f2f';
 const INK_COLOR = '#222222';
 const MAX_ANSWER_LENGTH = 9;
-// 家长验证题目（任务一阶段为固定简单算式）。数字键仅提供 0-9，答案只允许数字。
+// 数字键仅提供 0-9，答案只允许数字。
 const DIGIT_ONLY = /^\d$/;
+// 家长验证盖层里印刷竖式的排版（略小于主界面，保证窄屏也能放下 4 位数字）。
+const GATE_COLUMNAR: ColumnarStyle = { digitSize: 34, rowGap: 12, colGap: 4 };
 
-// 家长验证盖层：居中白卡显示算式，配虚拟数字键输入答案。
-// 答对(onSuccess)/答错(换题或重试按设置)/关闭(onClose)均由调用方接入，
-// 本组件只负责出题、判题与错误态（无音效）。
+// 家长验证盖层：采用与计算测试主界面相同的布局——左侧题目(横式)+竖式印刷+手写区，
+// 右侧答案栏+虚拟数字键盘。答对(onSuccess)/答错(换题或重试按全局设置)/
+// 关闭(onClose) 均由调用方接入，本组件只负责出题、判题、手写与错误态（无音效）。
 export default function ParentalGateOverlay(props: ParentalGateOverlayProps): React.JSX.Element {
   const { visible, onSuccess, onClose } = props;
 
@@ -28,19 +33,34 @@ export default function ParentalGateOverlay(props: ParentalGateOverlayProps): Re
   const [question, setQuestion] = useState<MathQuestion | null>(null);
   const [answer, setAnswer] = useState('');
   const [error, setError] = useState(false);
+  const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
+  const padRef = useRef<DrawingPadHandle | null>(null);
+  const [padArea, setPadArea] = useState({ width: 0, height: 0 });
 
-  // 每次打开盖层时重新加载设置并生成新题，同时清空上次输入与错误态。
+  const nextQuestion = (q: MathQuestion) => {
+    setQuestion(q);
+    // 换题后清空白板笔迹。
+    padRef.current?.clear();
+  };
+
+  const onBoardLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setPadArea({ width, height });
+  };
+
+  // 每次打开盖层时重新加载设置并生成新题，同时清空上次输入、错误态与手写笔迹。
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
     setAnswer('');
     setError(false);
+    setTool('pen');
     setSettings(null);
     setQuestion(null);
     loadParentalGateSettings().then((loaded) => {
       if (cancelled) return;
       setSettings(loaded);
-      setQuestion(generateGateQuestion(loaded));
+      nextQuestion(generateGateQuestion(loaded));
     });
     return () => {
       cancelled = true;
@@ -66,56 +86,115 @@ export default function ParentalGateOverlay(props: ParentalGateOverlayProps): Re
     }
     setError(true);
     setAnswer('');
-    // 答错后按设置决定换新题或保留原题重试。
+    // 答错后按全局设置决定换新题或保留原题重试；换新题时顺带清空白板。
     if (settings.wrongAnswerMode === 'new') {
-      setQuestion(generateGateQuestion(settings));
+      nextQuestion(generateGateQuestion(settings));
     }
   };
 
   const handleClose = () => {
+    Keyboard.dismiss();
     onClose();
   };
 
   return (
     <Modal
       animationType="fade"
-      transparent={true}
+      transparent={false}
       visible={visible}
       onRequestClose={handleClose}
     >
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <View style={styles.header}>
+      <View style={styles.screen}>
+        {/* 顶部：标题 / 提示 / 错误 / 关闭 */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
             <Text style={styles.title}>家长验证</Text>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={handleClose}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel="关闭"
-            >
-              <Text style={styles.closeText}>✕</Text>
-            </TouchableOpacity>
+            <Text style={styles.hint}>请在左板列式手算，在右板输入答案</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={handleClose}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="关闭"
+          >
+            <Text style={styles.closeText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.split}>
+          {/* 左侧：横式 + 竖式印刷 + 手写 */}
+          <View style={styles.leftPanel}>
+            <View style={styles.boardHeader}>
+              <Text style={styles.questionLine}>
+                {question ? `${question.expr} = ?` : '……'}
+              </Text>
+              <View style={styles.toolbar}>
+                <TouchableOpacity
+                  style={[styles.toolButton, tool === 'pen' && styles.toolButtonActive]}
+                  onPress={() => setTool('pen')}
+                >
+                  <Text style={styles.toolText}>✏️</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.toolButton, tool === 'eraser' && styles.toolButtonActive]}
+                  onPress={() => setTool('eraser')}
+                >
+                  <Text style={styles.toolText}>🧽</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.toolButton}
+                  onPress={() => padRef.current?.clear()}
+                >
+                  <Text style={styles.toolText}>🗑️</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.board} onLayout={onBoardLayout}>
+              {padArea.width > 0 && padArea.height > 0 && (
+                <DrawingPad ref={padRef} tool={tool} canvasColor="#ffffff">
+                  {/* 竖式水平居中、垂直靠上（顶部留约两个数字高度），下方留白手写 */}
+                  <View
+                    style={{
+                      width: padArea.width,
+                      height: padArea.height,
+                      alignItems: 'center',
+                      paddingTop: GATE_COLUMNAR.digitSize * 2,
+                    }}
+                  >
+                    {question && (
+                      <ColumnarLayout
+                        a={question.a}
+                        b={question.b}
+                        op={question.op}
+                        style={GATE_COLUMNAR}
+                      />
+                    )}
+                  </View>
+                </DrawingPad>
+              )}
+            </View>
           </View>
 
-          <Text style={styles.question}>
-            {question ? `${question.expr} = ?` : '……'}
-          </Text>
+          {/* 右侧：答案栏 + 虚拟键盘 */}
+          <View style={styles.rightPanel}>
+            <View style={styles.answerDisplay}>
+              <Text style={[styles.answerText, answer === '' && styles.answerPlaceholder]}>
+                {answer === '' ? '请输入答案' : answer}
+              </Text>
+            </View>
+            {error && <Text style={styles.errorText}>答案错误，请重试</Text>}
 
-          <View style={styles.answerDisplay}>
-            <Text style={[styles.answerText, answer === '' && styles.answerPlaceholder]}>
-              {answer === '' ? '请输入答案' : answer}
-            </Text>
+            <View style={styles.keypadWrap}>
+              <NumberKeypad
+                onDigit={handleDigit}
+                onBackspace={handleBackspace}
+                onSubmit={handleSubmit}
+                submitDisabled={answer.length === 0}
+              />
+            </View>
           </View>
-
-          {error && <Text style={styles.errorText}>答案错误，请重试</Text>}
-
-          <NumberKeypad
-            onDigit={handleDigit}
-            onBackspace={handleBackspace}
-            onSubmit={handleSubmit}
-            submitDisabled={answer.length === 0}
-          />
         </View>
       </View>
     </Modal>
@@ -123,58 +202,107 @@ export default function ParentalGateOverlay(props: ParentalGateOverlayProps): Re
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
+  screen: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
+    backgroundColor: '#eef3f8',
+    padding: 12,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    justifyContent: 'space-between',
+    paddingHorizontal: 6,
+    paddingBottom: 8,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flexShrink: 1,
   },
   title: {
     fontSize: 20,
     fontWeight: '700',
     color: INK_COLOR,
+    marginRight: 10,
+  },
+  hint: {
+    fontSize: 12,
+    color: '#666666',
+    flexShrink: 1,
   },
   closeButton: {
     padding: 6,
   },
   closeText: {
-    fontSize: 22,
-    lineHeight: 24,
+    fontSize: 24,
+    lineHeight: 26,
     fontWeight: '600',
     color: ACCENT,
   },
-  question: {
-    fontSize: 32,
+  split: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  leftPanel: {
+    flex: 3,
+    marginRight: 10,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 10,
+  },
+  boardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  questionLine: {
+    fontSize: 22,
     fontWeight: '700',
     color: INK_COLOR,
-    textAlign: 'center',
-    marginBottom: 16,
+    flexShrink: 1,
+  },
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  toolButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+    backgroundColor: '#eef3f8',
+  },
+  toolButtonActive: {
+    backgroundColor: '#bbdefb',
+  },
+  toolText: {
+    fontSize: 18,
+  },
+  board: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  rightPanel: {
+    flex: 2,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 10,
   },
   answerDisplay: {
-    height: 52,
-    marginBottom: 6,
+    height: 56,
+    marginBottom: 4,
     borderBottomWidth: 2,
     borderColor: ACCENT,
     alignItems: 'center',
     justifyContent: 'center',
   },
   answerText: {
-    fontSize: 30,
+    fontSize: 32,
     fontWeight: '600',
     color: ACCENT,
   },
@@ -187,6 +315,11 @@ const styles = StyleSheet.create({
     color: ERROR_COLOR,
     fontSize: 14,
     textAlign: 'center',
-    marginVertical: 6,
+    marginVertical: 4,
+  },
+  keypadWrap: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingTop: 4,
   },
 });
