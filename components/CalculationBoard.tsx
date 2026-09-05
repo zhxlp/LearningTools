@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 
 import type { ColumnarStyle, MathQuestion } from '../lib/math-types';
 import ColumnarLayout from './ColumnarLayout';
@@ -100,6 +100,11 @@ export default function CalculationBoard(props: CalculationBoardProps): React.JS
   } = props;
 
   const { a, b, op, expr } = question;
+
+  const { height: winH } = useWindowDimensions();
+  // 矮屏（手机横屏高度不高）自动紧凑：右栏收窄、答案栏与键盘/确定缩小，确保放得下。
+  const compact = winH < 500;
+  const effectiveRightWidth = rightWidth ?? (compact ? 248 : 296);
 
   const padRef = useRef<DrawingPadHandle | null>(null);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
@@ -227,10 +232,11 @@ export default function CalculationBoard(props: CalculationBoardProps): React.JS
       </View>
 
       {/* ===== 右侧：答案栏 + 数字键盘 ===== */}
-      <View style={[styles.rightPanel, rightWidth != null && { width: rightWidth }]}>
+      <View style={[styles.rightPanel, { width: effectiveRightWidth }]}>
         <View
           style={[
             styles.answerBox,
+            compact && styles.answerBoxCompact,
             feedback === 'correct' && styles.answerBoxCorrect,
             feedback === 'wrong' && styles.answerBoxWrong,
           ]}
@@ -238,6 +244,7 @@ export default function CalculationBoard(props: CalculationBoardProps): React.JS
           <Text
             style={[
               styles.answerText,
+              compact && styles.answerTextCompact,
               feedback === 'correct' && styles.answerTextCorrect,
               feedback === 'wrong' && styles.answerTextWrong,
               answer === '' && feedback === 'idle' && styles.answerPlaceholder,
@@ -255,6 +262,7 @@ export default function CalculationBoard(props: CalculationBoardProps): React.JS
             onBackspace={onBackspace}
             onSubmit={onSubmit}
             submitDisabled={submitDisabled}
+            dense={compact}
           />
         </View>
       </View>
@@ -380,6 +388,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 8,
   },
+  answerBoxCompact: {
+    height: 40,
+    marginBottom: 4,
+  },
   answerBoxCorrect: {
     borderColor: GREEN,
     backgroundColor: '#e8f5e9',
@@ -392,6 +404,9 @@ const styles = StyleSheet.create({
     fontSize: 40,
     fontWeight: '700',
     color: ACCENT,
+  },
+  answerTextCompact: {
+    fontSize: 28,
   },
   answerTextCorrect: {
     color: GREEN,

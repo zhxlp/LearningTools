@@ -6,6 +6,8 @@ export interface NumberKeypadProps {
   onSubmit: () => void;
   submitDisabled?: boolean;
   submitLabel?: string;
+  /** 紧凑档：缩小按键/确定高度与字号，供矮屏（手机横屏）放得下完整区域。 */
+  dense?: boolean;
 }
 
 // 数字键区域布局：前三行 1-9，最后一行（空位 + 0 + 退格）。
@@ -21,37 +23,44 @@ export default function NumberKeypad(props: NumberKeypadProps): React.JSX.Elemen
   const { onDigit, onBackspace, onSubmit } = props;
   const submitLabel = props.submitLabel ?? '确定';
   const submitDisabled = props.submitDisabled ?? false;
+  const dense = props.dense ?? false;
 
   return (
     <View style={styles.container}>
       {DIGIT_ROWS.map((row, rowIndex) => (
-        <View key={rowIndex} style={styles.row}>
+        <View key={rowIndex} style={[styles.row, dense && styles.rowDense]}>
           {row.map((digit) => (
             <TouchableOpacity
               key={digit}
-              style={styles.key}
+              style={[styles.key, dense && styles.keyDense]}
               onPress={() => onDigit(digit)}
             >
-              <Text style={styles.keyText}>{digit}</Text>
+              <Text style={[styles.keyText, dense && styles.keyTextDense]}>{digit}</Text>
             </TouchableOpacity>
           ))}
         </View>
       ))}
-      <View style={styles.row}>
+      <View style={[styles.row, dense && styles.rowDense]}>
         <View style={styles.blankCell} />
-        <TouchableOpacity style={styles.key} onPress={() => onDigit('0')}>
-          <Text style={styles.keyText}>0</Text>
+        <TouchableOpacity
+          style={[styles.key, dense && styles.keyDense]}
+          onPress={() => onDigit('0')}
+        >
+          <Text style={[styles.keyText, dense && styles.keyTextDense]}>0</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.key} onPress={onBackspace}>
-          <Text style={styles.keyText}>⌫</Text>
+        <TouchableOpacity
+          style={[styles.key, dense && styles.keyDense]}
+          onPress={onBackspace}
+        >
+          <Text style={[styles.keyText, dense && styles.keyTextDense]}>⌫</Text>
         </TouchableOpacity>
       </View>
       <TouchableOpacity
-        style={[styles.submit, submitDisabled && styles.submitDisabled]}
+        style={[styles.submit, dense && styles.submitDense, submitDisabled && styles.submitDisabled]}
         onPress={onSubmit}
         disabled={submitDisabled}
       >
-        <Text style={styles.submitText}>{submitLabel}</Text>
+        <Text style={[styles.submitText, dense && styles.submitTextDense]}>{submitLabel}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -65,6 +74,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 12,
   },
+  rowDense: {
+    marginBottom: 5,
+  },
   key: {
     flex: 1,
     height: 56,
@@ -76,6 +88,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  keyDense: {
+    height: 38,
+    marginHorizontal: 4,
+    borderRadius: 19,
+  },
   // 与按键占位等宽（flex + 外边距），保证 0 键居中、退格键靠右。
   blankCell: {
     flex: 1,
@@ -86,6 +103,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: ACCENT,
   },
+  keyTextDense: {
+    fontSize: 17,
+  },
   submit: {
     height: 52,
     marginTop: 4,
@@ -94,6 +114,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  submitDense: {
+    height: 36,
+    marginTop: 2,
+    borderRadius: 18,
+  },
   submitDisabled: {
     opacity: 0.5,
   },
@@ -101,5 +126,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  submitTextDense: {
+    fontSize: 15,
   },
 });
