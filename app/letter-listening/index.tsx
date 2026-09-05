@@ -1,11 +1,10 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Slider from "@react-native-community/slider";
 import { AudioSource, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { useEffect, useState } from "react";
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import WifiSoundWave from "../../components/WifiSoundWave";
 import ParentalGateOverlay from "../../components/ParentalGateOverlay";
@@ -173,7 +172,6 @@ export default function LetterListening() {
   const [options, setOptions] = useState<string[]>([]);
   const [gameCompleted, setGameCompleted] = useState(false);
   const [selectedIncorrect, setSelectedIncorrect] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
   const [optionCount, setOptionCount] = useState<number>(5);
   const [letterCaseOption, setLetterCaseOption] = useState<LetterCaseOption>('uppercase');
   const [sessionCorrect, setSessionCorrect] = useState(0);
@@ -184,55 +182,70 @@ export default function LetterListening() {
   const [wrongFeedbackMode, setWrongFeedbackMode] = useState<WrongFeedbackMode>('error');
   const [gateVisible, setGateVisible] = useState(false);
 
+  // 最近一次应用到当前一局的选项数量：回到本页时仅当存储值与其不同才重开一局。
+  const appliedOptionCountRef = useRef<number>(-1);
+  // 始终指向最新一次渲染的 startNewGame，供聚焦回调在稳定闭包中调用。
+  const startNewGameRef = useRef<(count?: number) => void>(() => {});
+
 
   useEffect(() => {
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-    loadSettings();
     return () => {
       ScreenOrientation.unlockAsync();
     }
   }, []);
 
 
-  const loadSettings = async () => {
-    try {
-      const savedOptionCount = await AsyncStorage.getItem('letterListeningOptionCount');
-      const savedLetterCaseOption = await AsyncStorage.getItem('letterListeningLetterCaseOption');
-      const savedWrongFeedback = await AsyncStorage.getItem('letterListeningWrongFeedback');
+  // 每次本页获得焦点时重读三项设置并即时套用；仅当存储的“选项数量”与当前一局所用
+  // 不同（含首次进入尚未开局）才重开一局，否则保留进行中的一局并仅更新其它两项。
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        try {
+          const [savedOptionCount, savedLetterCaseOption, savedWrongFeedback] = await Promise.all([
+            AsyncStorage.getItem('letterListeningOptionCount'),
+            AsyncStorage.getItem('letterListeningLetterCaseOption'),
+            AsyncStorage.getItem('letterListeningWrongFeedback'),
+          ]);
+          if (!active) return;
 
-      if (savedOptionCount) {
-        setOptionCount(parseInt(savedOptionCount));
-      }
+          const parsedCount = parseInt(savedOptionCount || '', 10);
+          const storedOptionCount = Number.isNaN(parsedCount) ? 5 : parsedCount;
 
-      if (savedLetterCaseOption) {
-        setLetterCaseOption(savedLetterCaseOption as LetterCaseOption);
-      }
+          if (
+            savedLetterCaseOption === 'uppercase' ||
+            savedLetterCaseOption === 'lowercase' ||
+            savedLetterCaseOption === 'both' ||
+            savedLetterCaseOption === 'mixed'
+          ) {
+            setLetterCaseOption(savedLetterCaseOption);
+          }
 
-      if (savedWrongFeedback === 'error' || savedWrongFeedback === 'letter') {
-        setWrongFeedbackMode(savedWrongFeedback);
-      }
+          if (savedWrongFeedback === 'error' || savedWrongFeedback === 'letter') {
+            setWrongFeedbackMode(savedWrongFeedback);
+          }
 
-      startNewGame(parseInt(savedOptionCount || '') || 5);
-    } catch (error) {
-      console.error("Error loading settings:", error);
-      startNewGame(5);
-    }
-  };
+          setOptionCount(storedOptionCount);
 
-
-  const saveSettings = async (count: number, letterCase: LetterCaseOption, wrongFeedback: WrongFeedbackMode) => {
-    try {
-      await AsyncStorage.setItem('letterListeningOptionCount', count.toString());
-      await AsyncStorage.setItem('letterListeningLetterCaseOption', letterCase);
-      await AsyncStorage.setItem('letterListeningWrongFeedback', wrongFeedback);
-      setOptionCount(count);
-      setLetterCaseOption(letterCase);
-      setWrongFeedbackMode(wrongFeedback);
-      startNewGame(count);
-    } catch (error) {
-      console.error("Error saving settings:", error);
-    }
-  };
+          if (storedOptionCount !== appliedOptionCountRef.current) {
+            appliedOptionCountRef.current = storedOptionCount;
+            startNewGameRef.current(storedOptionCount);
+          }
+        } catch (error) {
+          console.error("Error loading settings:", error);
+          // 读取失败也至少要按默认选项数量开一局。
+          if (appliedOptionCountRef.current < 0) {
+            appliedOptionCountRef.current = 5;
+            startNewGameRef.current(5);
+          }
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
 
 
   // 获取今天的日期字符串 (YYYY-MM-DD)
@@ -316,6 +329,9 @@ export default function LetterListening() {
 
     setOptions(allOptions);
   };
+
+  // 每次渲染刷新稳定引用，确保聚焦回调调用的是最新一版的 startNewGame。
+  startNewGameRef.current = startNewGame;
 
 
 
@@ -407,144 +423,9 @@ export default function LetterListening() {
       <ParentalGateOverlay
         visible={gateVisible}
         onClose={() => setGateVisible(false)}
-        onSuccess={() => { setGateVisible(false); setShowSettings(true); }}
+        onSuccess={() => { setGateVisible(false); router.push('/letter-listening/settings'); }}
       />
 
-      {/* Settings Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={showSettings}
-        onRequestClose={() => setShowSettings(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>设置</Text>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setShowSettings(false)}
-              >
-                <MaterialIcons name="close" size={24} color="#1976d2" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>选项数量: {optionCount}</Text>
-              <View style={styles.sliderContainer}>
-                <Text style={styles.sliderLabel}>3</Text>
-                <View style={styles.sliderWrapper}>
-                  <Slider
-                    style={styles.slider}
-                    minimumValue={3}
-                    maximumValue={8}
-                    step={1}
-                    value={optionCount}
-                    onValueChange={setOptionCount}
-                    minimumTrackTintColor="#1976d2"
-                    maximumTrackTintColor="#d3d3d3"
-                  />
-                </View>
-                <Text style={styles.sliderLabel}>8</Text>
-              </View>
-            </View>
-
-            <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>字母显示:</Text>
-              <View style={styles.optionButtons}>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    letterCaseOption === 'uppercase' && styles.selectedOptionButton
-                  ]}
-                  onPress={() => setLetterCaseOption('uppercase')}
-                >
-                  <Text style={[
-                    styles.optionButtonText,
-                    letterCaseOption === 'uppercase' && styles.selectedOptionButtonText
-                  ]}>大写</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    letterCaseOption === 'lowercase' && styles.selectedOptionButton
-                  ]}
-                  onPress={() => setLetterCaseOption('lowercase')}
-                >
-                  <Text style={[
-                    styles.optionButtonText,
-                    letterCaseOption === 'lowercase' && styles.selectedOptionButtonText
-                  ]}>小写</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    letterCaseOption === 'both' && styles.selectedOptionButton
-                  ]}
-                  onPress={() => setLetterCaseOption('both')}
-                >
-                  <Text style={[
-                    styles.optionButtonText,
-                    letterCaseOption === 'both' && styles.selectedOptionButtonText
-                  ]}>同时</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    letterCaseOption === 'mixed' && styles.selectedOptionButton
-                  ]}
-                  onPress={() => setLetterCaseOption('mixed')}
-                >
-                  <Text style={[
-                    styles.optionButtonText,
-                    letterCaseOption === 'mixed' && styles.selectedOptionButtonText
-                  ]}>混搭</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>答错反馈:</Text>
-              <View style={styles.optionButtons}>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    wrongFeedbackMode === 'error' && styles.selectedOptionButton
-                  ]}
-                  onPress={() => setWrongFeedbackMode('error')}
-                >
-                  <Text style={[
-                    styles.optionButtonText,
-                    wrongFeedbackMode === 'error' && styles.selectedOptionButtonText
-                  ]}>错误音</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    wrongFeedbackMode === 'letter' && styles.selectedOptionButton
-                  ]}
-                  onPress={() => setWrongFeedbackMode('letter')}
-                >
-                  <Text style={[
-                    styles.optionButtonText,
-                    wrongFeedbackMode === 'letter' && styles.selectedOptionButtonText
-                  ]}>字母发音</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.saveButton}
-              onPress={() => {
-                saveSettings(optionCount, letterCaseOption, wrongFeedbackMode);
-                setShowSettings(false);
-              }}
-            >
-              <Text style={styles.saveButtonText}>完成</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -693,89 +574,5 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#333",
     lineHeight: 28,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContent: {
-    backgroundColor: "white",
-    borderRadius: 8,
-    padding: 16,
-    width: "80%",
-    maxWidth: 360,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  closeButton: {
-    padding: 4,
-  },
-  settingRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  settingLabel: {
-    fontSize: 14,
-  },
-  optionButtons: {
-    flexDirection: "row",
-  },
-  optionButton: {
-    backgroundColor: "#e0e0e0",
-    borderRadius: 16,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    marginHorizontal: 3,
-  },
-  selectedOptionButton: {
-    backgroundColor: "#1976d2",
-  },
-  optionButtonText: {
-    fontSize: 14,
-    color: "#333",
-  },
-  selectedOptionButtonText: {
-    color: "white",
-  },
-  saveButton: {
-    backgroundColor: "#1976d2",
-    borderRadius: 4,
-    padding: 10,
-    alignItems: "center",
-  },
-  saveButtonText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  sliderContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    marginHorizontal: 8,
-  },
-  sliderWrapper: {
-    flex: 1,
-    marginHorizontal: 8,
-  },
-  slider: {
-    width: "100%",
-    height: 32,
-  },
-  sliderLabel: {
-    fontSize: 14,
-    color: "#333",
   },
 });

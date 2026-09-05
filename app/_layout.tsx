@@ -46,6 +46,13 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="letter-listening/settings"
+          options={{
+            title: '字母听力测试设置',
+            headerShown: true,
+          }}
+        />
+        <Stack.Screen
           name="math-test/index"
           options={{
             title: '计算测试',
