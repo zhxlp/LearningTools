@@ -5,7 +5,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import WifiSoundWave from "../../components/WifiSoundWave";
 
 // 导入所有字母音频文件
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import audioA from "../../assets/audio/letters/a.mp3";
 import audioB from "../../assets/audio/letters/b.mp3";
 import audioC from "../../assets/audio/letters/c.mp3";
@@ -73,6 +75,12 @@ interface ILetterCard extends ILetterInfo {
   play: (player: AudioPlayer) => void
 }
 
+type CaseMode = 'upper' | 'lower' | 'both';
+
+const CASE_MODE_STORAGE_KEY = 'letter-cards.caseMode';
+const isCaseMode = (value: string | null): value is CaseMode =>
+  value === 'upper' || value === 'lower' || value === 'both';
+
 // Fisher-Yates shuffle algorithm
 const shuffleArray = (array: ILetterInfo[]) => {
   const newArray = [...array];
@@ -83,17 +91,26 @@ const shuffleArray = (array: ILetterInfo[]) => {
   return newArray;
 };
 
-const LetterCard: React.FC<ILetterCard> = ({ audio, letter, pronounce, play }) => {
+const LetterCard: React.FC<ILetterCard & { caseMode: CaseMode }> = ({ audio, letter, pronounce, play, caseMode }) => {
   const player = useAudioPlayer(audio);
   const { playing } = useAudioPlayerStatus(player);
+
+  const isBoth = caseMode === 'both';
+  const displayLetter = caseMode === 'lower' ? letter.toLowerCase() : letter;
 
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={() => play(player)}
     >
-      <Text style={styles.uppercase}>{letter}</Text>
-      <Text style={styles.lowercase}>{letter.toLowerCase()}</Text>
+      {isBoth ? (
+        <>
+          <Text style={styles.uppercase}>{letter}</Text>
+          <Text style={styles.lowercase}>{letter.toLowerCase()}</Text>
+        </>
+      ) : (
+        <Text style={styles.singleLetter}>{displayLetter}</Text>
+      )}
       <View style={styles.pronounceContainer}>
         <Text style={styles.pronounceText}>{pronounce}</Text>
       </View>
@@ -110,8 +127,29 @@ type DisplayMode = 'sequential' | 'random';
 
 export default function LetterCards() {
   const [displayMode, setDisplayMode] = useState<DisplayMode>('sequential');
+  const [caseMode, setCaseMode] = useState<CaseMode>('both');
   const [shuffledLetters, setShuffledLetters] = useState<ILetterInfo[]>(LettersData);
   const lastPlayPlayerRef = useRef<AudioPlayer>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    AsyncStorage.getItem(CASE_MODE_STORAGE_KEY)
+      .then((stored) => {
+        if (mounted && isCaseMode(stored)) {
+          setCaseMode(stored);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleCaseModeChange = useCallback((mode: CaseMode) => {
+    setCaseMode(mode);
+    AsyncStorage.setItem(CASE_MODE_STORAGE_KEY, mode).catch(() => {});
+  }, []);
+
   const play = useCallback((player: AudioPlayer) => {
     if (lastPlayPlayerRef.current?.playing) {
       lastPlayPlayerRef.current?.pause()
@@ -135,23 +173,45 @@ export default function LetterCards() {
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={[styles.modeButton, displayMode === 'sequential' && styles.activeModeButton]} 
-          onPress={handleSequential}
-        >
-          <Text style={[styles.modeButtonText, displayMode === 'sequential' && styles.activeModeButtonText]}>顺序</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.modeButton, displayMode === 'random' && styles.activeModeButton]} 
-          onPress={handleShuffle}
-        >
-          <Text style={[styles.modeButtonText, displayMode === 'random' && styles.activeModeButtonText]}>随机</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            style={[styles.modeButton, displayMode === 'sequential' && styles.activeModeButton]}
+            onPress={handleSequential}
+          >
+            <Text style={[styles.modeButtonText, displayMode === 'sequential' && styles.activeModeButtonText]}>顺序</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeButton, displayMode === 'random' && styles.activeModeButton]}
+            onPress={handleShuffle}
+          >
+            <Text style={[styles.modeButtonText, displayMode === 'random' && styles.activeModeButtonText]}>随机</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            style={[styles.modeButton, caseMode === 'upper' && styles.activeModeButton]}
+            onPress={() => handleCaseModeChange('upper')}
+          >
+            <Text style={[styles.modeButtonText, caseMode === 'upper' && styles.activeModeButtonText]}>大写</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeButton, caseMode === 'lower' && styles.activeModeButton]}
+            onPress={() => handleCaseModeChange('lower')}
+          >
+            <Text style={[styles.modeButtonText, caseMode === 'lower' && styles.activeModeButtonText]}>小写</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeButton, caseMode === 'both' && styles.activeModeButton]}
+            onPress={() => handleCaseModeChange('both')}
+          >
+            <Text style={[styles.modeButtonText, caseMode === 'both' && styles.activeModeButtonText]}>大小写</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.grid}>
           {shuffledLetters.map((item) => (
-            <LetterCard key={item.letter} {...item} play={play} />
+            <LetterCard key={item.letter} {...item} play={play} caseMode={caseMode} />
           ))}
         </View>
       </ScrollView>
@@ -165,10 +225,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
   },
   header: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  headerRow: {
     flexDirection: "row",
     justifyContent: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 3,
   },
   modeButton: {
     backgroundColor: "#ffffff",
@@ -234,6 +297,12 @@ const styles = StyleSheet.create({
   },
   lowercase: {
     fontSize: 18,
+    marginBottom: 8,
+  },
+  singleLetter: {
+    fontSize: 40,
+    fontWeight: "bold",
+    lineHeight: 48,
     marginBottom: 8,
   },
   pronounceContainer: {
