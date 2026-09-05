@@ -2,7 +2,7 @@
   "expo": {
     "name": "LearningTools",
     "slug": "LearningTools",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "learningtools",
@@ -21,7 +21,7 @@
       }
     },
     "ios": {
-      "buildNumber": "2",
+      "buildNumber": "3",
       "supportsTablet": true,
       "requireFullScreen": true,
       "infoPlist": {
@@ -29,7 +29,7 @@
       }
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -71,14 +71,8 @@
         "expo-localization",
         {
           "supportedLocales": {
-            "ios": [
-              "en",
-              "zh"
-            ],
-            "android": [
-              "en",
-              "zh"
-            ]
+            "ios": ["en", "zh"],
+            "android": ["en", "zh"]
           }
         }
       ],
