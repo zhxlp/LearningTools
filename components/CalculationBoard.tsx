@@ -148,7 +148,48 @@ export default function CalculationBoard(props: CalculationBoardProps): React.JS
     <View style={styles.row}>
       {/* ===== 左侧：题面 + 印刷竖式 + 手写 ===== */}
       <View style={styles.leftCard}>
-        <Text style={styles.questionLine}>{expr} = ?</Text>
+        {/* 顶行：题横式 + 图标工具（笔/橡皮/清空/排版），把工具栏从底部移上来以放大竖式区 */}
+        <View style={styles.boardTop}>
+          <Text style={styles.questionLine} numberOfLines={1}>
+            {expr} = ?
+          </Text>
+          <View style={styles.toolbar}>
+            <TouchableOpacity
+              style={[styles.toolButton, tool === 'pen' && styles.toolButtonActive]}
+              onPress={() => setTool('pen')}
+              accessibilityRole="button"
+              accessibilityLabel="画笔"
+            >
+              <Text style={styles.toolText}>✏️</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toolButton, tool === 'eraser' && styles.toolButtonActive]}
+              onPress={() => setTool('eraser')}
+              accessibilityRole="button"
+              accessibilityLabel="橡皮"
+            >
+              <Text style={styles.toolText}>🧽</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.toolButton}
+              onPress={() => padRef.current?.clear()}
+              accessibilityRole="button"
+              accessibilityLabel="清空"
+            >
+              <Text style={styles.toolText}>🗑️</Text>
+            </TouchableOpacity>
+            {showStyleControls && (
+              <TouchableOpacity
+                style={[styles.toolButton, styleOpen && styles.toolButtonActive]}
+                onPress={() => setStyleOpen((v) => !v)}
+                accessibilityRole="button"
+                accessibilityLabel="排版"
+              >
+                <Text style={styles.toolText}>🅰️</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
 
         {/* 手写画区：DrawingPad 填满整块，白板中央印刷竖式（下层、被动，不被橡皮擦除） */}
         <View style={styles.padArea} onLayout={onPadAreaLayout}>
@@ -200,35 +241,6 @@ export default function CalculationBoard(props: CalculationBoardProps): React.JS
           </View>
         )}
 
-        {/* 白板工具栏：笔/橡皮 切换、清空；仅当支持就地排版时提供 🅰️排版 开合 */}
-        <View style={styles.toolbar}>
-          <TouchableOpacity
-            style={[styles.toolButton, tool === 'pen' && styles.toolButtonActive]}
-            onPress={() => setTool('pen')}
-          >
-            <Text style={[styles.toolText, tool === 'pen' && styles.toolTextActive]}>✏️笔</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toolButton, tool === 'eraser' && styles.toolButtonActive]}
-            onPress={() => setTool('eraser')}
-          >
-            <Text style={[styles.toolText, tool === 'eraser' && styles.toolTextActive]}>🧽橡皮</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.toolButton}
-            onPress={() => padRef.current?.clear()}
-          >
-            <Text style={styles.toolText}>🗑️清空</Text>
-          </TouchableOpacity>
-          {showStyleControls && (
-            <TouchableOpacity
-              style={[styles.toolButton, styleOpen && styles.toolButtonActive]}
-              onPress={() => setStyleOpen((v) => !v)}
-            >
-              <Text style={[styles.toolText, styleOpen && styles.toolTextActive]}>🅰️排版</Text>
-            </TouchableOpacity>
-          )}
-        </View>
       </View>
 
       {/* ===== 右侧：答案栏 + 数字键盘 ===== */}
@@ -282,12 +294,18 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 10,
   },
+  boardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
   questionLine: {
     fontSize: 22,
     fontWeight: '700',
     color: INK,
-    textAlign: 'center',
-    marginBottom: 8,
+    flexShrink: 1,
+    marginRight: 8,
   },
   padArea: {
     flex: 1,
@@ -350,30 +368,25 @@ const styles = StyleSheet.create({
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    marginLeft: 4,
   },
   toolButton: {
-    flex: 1,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: '#cccccc',
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 3,
+    marginLeft: 6,
   },
   toolButtonActive: {
     backgroundColor: '#e3f2fd',
     borderColor: ACCENT,
   },
   toolText: {
-    fontSize: 13,
-    color: '#555555',
-  },
-  toolTextActive: {
-    color: ACCENT,
-    fontWeight: '700',
+    fontSize: 18,
   },
   rightPanel: {
     width: 296,
