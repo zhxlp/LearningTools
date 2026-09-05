@@ -1,9 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
-import { type Href, useNavigation, useRouter } from 'expo-router';
+import { type Href, useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -89,6 +89,9 @@ export default function MathTestIndexScreen(): React.JSX.Element {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 当前展示的题是否已落盘（答对关闭，或 new 换题作废）。true 期间离开不再补记该题。
   const currentRecordedRef = useRef(false);
+  // 最新已载入的设置快照。出题与答错判定始终读本 ref（每次获得焦点都会刷新），
+  // 避免回到本屏后仍沿用挂载时的旧快照，导致设置页修改不生效或被旧快照回写覆盖。
+  const settingsRef = useRef<MathSettings | null>(null);
 
   // 轮次起点：进入页面即开始一轮；离开页面（unmount/返回）才结算保存。
   const [roundStartedMs] = useState<number>(() => Date.now());
@@ -124,11 +127,13 @@ export default function MathTestIndexScreen(): React.JSX.Element {
     }
   };
 
-  // 出下一题：换题目、清手写、复位本题状态。settings 已在载入后保证非空。
-  const presentNext = (): void => {
-    if (!settings) return;
+  // 出下一题：换题目、清手写、复位本题状态。配置读 settingsRef 以取最新设置
+  // （其随焦点重载刷新，定时器触发时也总能拿到当前值，而非触发渲染时的旧快照）。
+  const presentNext = useCallback((): void => {
+    const current = settingsRef.current;
+    if (!current) return;
     currentRecordedRef.current = false; // 新题重新武装“未落盘”状态
-    const q = generateQuestionFromSettings(settings.enabledOps, settings.difficulty);
+    const q = generateQuestionFromSettings(current.enabledOps, current.difficulty);
     setQuestion(q);
     setQStartedAtISO(new Date().toISOString());
     setWrongs(0);
@@ -136,26 +141,37 @@ export default function MathTestIndexScreen(): React.JSX.Element {
     setFeedback('idle');
     setBusy(false);
     padRef.current?.clear();
-  };
+  }, []);
 
-  // 挂载：锁横屏、载设置并出第一题；卸载：解锁、清计时器。
+  // 挂载：锁横屏；卸载：解锁、清计时器。设置载入与首题改由焦点回调负责，避免首屏双跑。
   useEffect(() => {
-    let cancelled = false;
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-    (async () => {
-      const loaded = await loadMathSettings();
-      if (cancelled) return;
-      setSettings(loaded);
-      setColumnarStyle(loaded.columnarStyle);
-      setQuestion(generateQuestionFromSettings(loaded.enabledOps, loaded.difficulty));
-      setQStartedAtISO(new Date().toISOString());
-    })();
     return () => {
-      cancelled = true;
       clearPendingTimer();
       ScreenOrientation.unlockAsync();
     };
   }, []);
+
+  // 每次本屏重新获得焦点（从设置/报表页返回）都从存储重载设置，使设置页的修改立即生效。
+  // 仅当尚无已载入设置（首次聚焦）时顺带出第一题；返回本屏时保留进行中的题不重置。
+  // presentNext 恒等稳定，故本回调只在聚焦/失焦边界运行，不会随每次渲染反复触发。
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        const loaded = await loadMathSettings();
+        if (cancelled) return;
+        const firstReady = settingsRef.current == null;
+        settingsRef.current = loaded;
+        setSettings(loaded);
+        setColumnarStyle(loaded.columnarStyle);
+        if (firstReady) presentNext();
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [presentNext])
+  );
 
   // 离开页面（真正 pop 掉本屏；push settings/report 不会触发）时结算保存本轮。
   const saveRoundRef = useRef<() => void>(() => {});
@@ -240,7 +256,7 @@ export default function MathTestIndexScreen(): React.JSX.Element {
     setStreak(0);
     const nextWrongs = wrongs + 1;
     setWrongs(nextWrongs);
-    if (settings?.wrongAnswerMode === 'new') {
+    if (settingsRef.current?.wrongAnswerMode === 'new') {
       const record: MathQuestionRecord = {
         a: question.a,
         b: question.b,
@@ -282,14 +298,17 @@ export default function MathTestIndexScreen(): React.JSX.Element {
   };
 
   // 就地排版改动即时生效并持久化到 mathTestSettings.columnarStyle。
+  // 落盘前先重读存储中的最新设置再合并 columnarStyle，避免把设置页并发修改的
+  // 题型/难度/答错行为用本屏旧快照回写覆盖。
   const changeColumnarStyle = (patch: Partial<ColumnarStyle>): void => {
     const next = { ...columnarStyle, ...patch };
-    setColumnarStyle(next);
-    if (settings) {
-      saveMathSettings({ ...settings, columnarStyle: next }).catch(() => {
-        // 持久化失败静默。
-      });
-    }
+    setColumnarStyle(next); // 本地状态即时重排竖式
+    (async () => {
+      const current = await loadMathSettings();
+      await saveMathSettings({ ...current, columnarStyle: next });
+    })().catch(() => {
+      // 重读/持久化失败静默。
+    });
   };
 
   const onPadAreaLayout = (e: { nativeEvent: { layout: { width: number; height: number } } }): void => {
