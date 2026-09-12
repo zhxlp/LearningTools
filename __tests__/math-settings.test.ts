@@ -1,214 +1,284 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { MathSettings, ALL_OPS } from '../lib/math-types';
-import { MATH_SETTINGS_KEY, sanitizeMathSettings, loadMathSettings, loadMathSettingsForWindow, saveMathSettings } from '../lib/math-settings';
+import {
+  loadMathSettings,
+  loadMathSettingsForWindow,
+  MATH_SETTINGS_KEY,
+  sanitizeMathSettings,
+  saveMathSettings,
+} from "@/lib/math-settings";
+import { ALL_OPS, MathSettings } from "@/lib/math-types";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const fullDefaults = (): MathSettings => ({
-  enabledOps: ['+', '-'],
+  enabledOps: ["+", "-"],
   difficulty: {
-    '+': { minDigits: 1, maxDigits: 2 },
-    '-': { minDigits: 1, maxDigits: 2 },
-    '*': { minDigits: 1, maxDigits: 2 },
-    '÷': { minDigits: 1, maxDigits: 2 },
+    "+": { minDigits: 1, maxDigits: 2 },
+    "-": { minDigits: 1, maxDigits: 2 },
+    "*": { minDigits: 1, maxDigits: 2 },
+    "÷": { minDigits: 1, maxDigits: 2 },
   },
-  wrongAnswerMode: 'retry',
-  columnarStyle: { digitSize: 44, rowGap: 20, colGap: 6 },
+  wrongAnswerMode: "retry",
+  columnarStyle: { digitSize: 44, rowGap: 20, colGap: 6, padTop: 20 },
 });
 
 beforeEach(async () => {
   await AsyncStorage.clear();
 });
 
-test('empty/undefined input returns full defaults', () => {
+test("empty/undefined input returns full defaults", () => {
   expect(sanitizeMathSettings(undefined)).toEqual(fullDefaults());
   expect(sanitizeMathSettings(null)).toEqual(fullDefaults());
   expect(sanitizeMathSettings({})).toEqual(fullDefaults());
-  expect(sanitizeMathSettings('junk')).toEqual(fullDefaults());
+  expect(sanitizeMathSettings("junk")).toEqual(fullDefaults());
 });
 
-test('partial object merges: custom + difficulty keeps other ops at defaults', () => {
-  const s = sanitizeMathSettings({ difficulty: { '+': { minDigits: 3, maxDigits: 4 } } });
-  expect(s.difficulty['+']).toEqual({ minDigits: 3, maxDigits: 4 });
-  expect(s.difficulty['-']).toEqual({ minDigits: 1, maxDigits: 2 });
-  expect(s.difficulty['*']).toEqual({ minDigits: 1, maxDigits: 2 });
-  expect(s.difficulty['÷']).toEqual({ minDigits: 1, maxDigits: 2 });
-  expect(s.enabledOps).toEqual(['+', '-']);
-  expect(s.wrongAnswerMode).toBe('retry');
-  expect(s.columnarStyle).toEqual({ digitSize: 44, rowGap: 20, colGap: 6 });
+test("partial object merges: custom + difficulty keeps other ops at defaults", () => {
+  const s = sanitizeMathSettings({
+    difficulty: { "+": { minDigits: 3, maxDigits: 4 } },
+  });
+  expect(s.difficulty["+"]).toEqual({ minDigits: 3, maxDigits: 4 });
+  expect(s.difficulty["-"]).toEqual({ minDigits: 1, maxDigits: 2 });
+  expect(s.difficulty["*"]).toEqual({ minDigits: 1, maxDigits: 2 });
+  expect(s.difficulty["÷"]).toEqual({ minDigits: 1, maxDigits: 2 });
+  expect(s.enabledOps).toEqual(["+", "-"]);
+  expect(s.wrongAnswerMode).toBe("retry");
+  expect(s.columnarStyle).toEqual({ digitSize: 44, rowGap: 20, colGap: 6, padTop: 20 });
 });
 
-test('custom settings for every field are respected', () => {
+test("custom settings for every field are respected", () => {
   const s = sanitizeMathSettings({
     enabledOps: ALL_OPS,
-    difficulty: { '+': { minDigits: 2, maxDigits: 3 }, '-': { minDigits: 1, maxDigits: 4 } },
-    wrongAnswerMode: 'new',
-    columnarStyle: { digitSize: 60, rowGap: 30, colGap: 10 },
+    difficulty: {
+      "+": { minDigits: 2, maxDigits: 3 },
+      "-": { minDigits: 1, maxDigits: 4 },
+    },
+    wrongAnswerMode: "new",
+    columnarStyle: { digitSize: 60, rowGap: 30, colGap: 10, padTop: 40 },
   });
-  expect(s.enabledOps).toEqual(['+', '-', '*', '÷']);
-  expect(s.difficulty['+']).toEqual({ minDigits: 2, maxDigits: 3 });
-  expect(s.difficulty['-']).toEqual({ minDigits: 1, maxDigits: 4 });
-  expect(s.wrongAnswerMode).toBe('new');
-  expect(s.columnarStyle).toEqual({ digitSize: 60, rowGap: 30, colGap: 10 });
+  expect(s.enabledOps).toEqual(["+", "-", "*", "÷"]);
+  expect(s.difficulty["+"]).toEqual({ minDigits: 2, maxDigits: 3 });
+  expect(s.difficulty["-"]).toEqual({ minDigits: 1, maxDigits: 4 });
+  expect(s.wrongAnswerMode).toBe("new");
+  expect(s.columnarStyle).toEqual({ digitSize: 60, rowGap: 30, colGap: 10, padTop: 40 });
 });
 
-test('enabledOps strips unknown ops and de-duplicates', () => {
-  expect(sanitizeMathSettings({ enabledOps: ['+', '%', '-', 'x', '+'] }).enabledOps).toEqual(['+', '-']);
+test("enabledOps strips unknown ops and de-duplicates", () => {
+  expect(
+    sanitizeMathSettings({ enabledOps: ["+", "%", "-", "x", "+"] }).enabledOps,
+  ).toEqual(["+", "-"]);
 });
 
-test('enabledOps empty/non-array/only-invalid falls back to default', () => {
-  expect(sanitizeMathSettings({ enabledOps: [] }).enabledOps).toEqual(['+', '-']);
-  expect(sanitizeMathSettings({ enabledOps: ['%', 'x'] }).enabledOps).toEqual(['+', '-']);
-  expect(sanitizeMathSettings({ enabledOps: '+-' }).enabledOps).toEqual(['+', '-']);
+test("enabledOps empty/non-array/only-invalid falls back to default", () => {
+  expect(sanitizeMathSettings({ enabledOps: [] }).enabledOps).toEqual([
+    "+",
+    "-",
+  ]);
+  expect(sanitizeMathSettings({ enabledOps: ["%", "x"] }).enabledOps).toEqual([
+    "+",
+    "-",
+  ]);
+  expect(sanitizeMathSettings({ enabledOps: "+-" }).enabledOps).toEqual([
+    "+",
+    "-",
+  ]);
 });
 
-test('wrongAnswerMode keeps only new|retry', () => {
-  expect(sanitizeMathSettings({ wrongAnswerMode: 'new' }).wrongAnswerMode).toBe('new');
-  expect(sanitizeMathSettings({ wrongAnswerMode: 'retry' }).wrongAnswerMode).toBe('retry');
-  expect(sanitizeMathSettings({ wrongAnswerMode: 'alwaysNew' }).wrongAnswerMode).toBe('retry');
-  expect(sanitizeMathSettings({ wrongAnswerMode: 42 }).wrongAnswerMode).toBe('retry');
+test("wrongAnswerMode keeps only new|retry", () => {
+  expect(sanitizeMathSettings({ wrongAnswerMode: "new" }).wrongAnswerMode).toBe(
+    "new",
+  );
+  expect(
+    sanitizeMathSettings({ wrongAnswerMode: "retry" }).wrongAnswerMode,
+  ).toBe("retry");
+  expect(
+    sanitizeMathSettings({ wrongAnswerMode: "alwaysNew" }).wrongAnswerMode,
+  ).toBe("retry");
+  expect(sanitizeMathSettings({ wrongAnswerMode: 42 }).wrongAnswerMode).toBe(
+    "retry",
+  );
 });
 
-test('columnarStyle needs all three numeric fields else defaults', () => {
-  expect(sanitizeMathSettings({ columnarStyle: { digitSize: 22, rowGap: 10, colGap: 3 } }).columnarStyle)
-    .toEqual({ digitSize: 22, rowGap: 10, colGap: 3 });
-  expect(sanitizeMathSettings({ columnarStyle: { digitSize: 50 } }).columnarStyle)
-    .toEqual({ digitSize: 44, rowGap: 20, colGap: 6 });
-  expect(sanitizeMathSettings({ columnarStyle: { digitSize: 'big', rowGap: 10, colGap: 3 } }).columnarStyle)
-    .toEqual({ digitSize: 44, rowGap: 20, colGap: 6 });
-  expect(sanitizeMathSettings({ columnarStyle: null }).columnarStyle)
-    .toEqual({ digitSize: 44, rowGap: 20, colGap: 6 });
+test("columnarStyle needs all three numeric fields else defaults", () => {
+  expect(
+    sanitizeMathSettings({
+      columnarStyle: { digitSize: 22, rowGap: 10, colGap: 3 },
+    }).columnarStyle,
+  ).toEqual({ digitSize: 22, rowGap: 10, colGap: 3, padTop: 20 });
+  // 显式给出 padTop 时按原值保留。
+  expect(
+    sanitizeMathSettings({
+      columnarStyle: { digitSize: 22, rowGap: 10, colGap: 3, padTop: 45 },
+    }).columnarStyle,
+  ).toEqual({ digitSize: 22, rowGap: 10, colGap: 3, padTop: 45 });
+  expect(
+    sanitizeMathSettings({ columnarStyle: { digitSize: 50 } }).columnarStyle,
+  ).toEqual({ digitSize: 44, rowGap: 20, colGap: 6, padTop: 20 });
+  expect(
+    sanitizeMathSettings({
+      columnarStyle: { digitSize: "big", rowGap: 10, colGap: 3 },
+    }).columnarStyle,
+  ).toEqual({ digitSize: 44, rowGap: 20, colGap: 6, padTop: 20 });
+  expect(sanitizeMathSettings({ columnarStyle: null }).columnarStyle).toEqual({
+    digitSize: 44,
+    rowGap: 20,
+    colGap: 6,
+    padTop: 20,
+  });
 });
 
-test('difficulty digits are clamped to 1..4', () => {
-  const s = sanitizeMathSettings({ difficulty: { '+': { minDigits: 0, maxDigits: 9 } } });
-  expect(s.difficulty['+']).toEqual({ minDigits: 1, maxDigits: 4 });
-  expect(s.difficulty['-']).toEqual({ minDigits: 1, maxDigits: 2 });
+test("difficulty digits are clamped to 1..4", () => {
+  const s = sanitizeMathSettings({
+    difficulty: { "+": { minDigits: 0, maxDigits: 9 } },
+  });
+  expect(s.difficulty["+"]).toEqual({ minDigits: 1, maxDigits: 4 });
+  expect(s.difficulty["-"]).toEqual({ minDigits: 1, maxDigits: 2 });
 });
 
-test('difficulty min>max is swapped after clamping', () => {
-  const s = sanitizeMathSettings({ difficulty: { '-': { minDigits: 4, maxDigits: 2 } } });
-  expect(s.difficulty['-']).toEqual({ minDigits: 2, maxDigits: 4 });
+test("difficulty min>max is swapped after clamping", () => {
+  const s = sanitizeMathSettings({
+    difficulty: { "-": { minDigits: 4, maxDigits: 2 } },
+  });
+  expect(s.difficulty["-"]).toEqual({ minDigits: 2, maxDigits: 4 });
 
-  const s2 = sanitizeMathSettings({ difficulty: { '*': { minDigits: 9, maxDigits: 2 } } });
-  expect(s2.difficulty['*']).toEqual({ minDigits: 2, maxDigits: 4 });
+  const s2 = sanitizeMathSettings({
+    difficulty: { "*": { minDigits: 9, maxDigits: 2 } },
+  });
+  expect(s2.difficulty["*"]).toEqual({ minDigits: 2, maxDigits: 4 });
 });
 
-test('malformed difficulty entries fall back to per-op default', () => {
+test("malformed difficulty entries fall back to per-op default", () => {
   const s = sanitizeMathSettings({
     difficulty: {
-      '+': 'easy',
-      '-': { minDigits: 3 },
-      '*': 5,
-      '÷': { minDigits: 2, maxDigits: 'x' },
+      "+": "easy",
+      "-": { minDigits: 3 },
+      "*": 5,
+      "÷": { minDigits: 2, maxDigits: "x" },
     },
   });
-  expect(s.difficulty['+']).toEqual({ minDigits: 1, maxDigits: 2 });
-  expect(s.difficulty['-']).toEqual({ minDigits: 1, maxDigits: 2 });
-  expect(s.difficulty['*']).toEqual({ minDigits: 1, maxDigits: 2 });
-  expect(s.difficulty['÷']).toEqual({ minDigits: 1, maxDigits: 2 });
+  expect(s.difficulty["+"]).toEqual({ minDigits: 1, maxDigits: 2 });
+  expect(s.difficulty["-"]).toEqual({ minDigits: 1, maxDigits: 2 });
+  expect(s.difficulty["*"]).toEqual({ minDigits: 1, maxDigits: 2 });
+  expect(s.difficulty["÷"]).toEqual({ minDigits: 1, maxDigits: 2 });
 });
 
-test('unknown keys are ignored', () => {
+test("unknown keys are ignored", () => {
   const s = sanitizeMathSettings({
-    enabledOps: ['*'],
-    difficulty: { '+': { minDigits: 2, maxDigits: 3 } },
-    secret: 'x',
+    enabledOps: ["*"],
+    difficulty: { "+": { minDigits: 2, maxDigits: 3 } },
+    secret: "x",
     helper: { minDigits: 9, maxDigits: 9 },
   });
-  expect(s.enabledOps).toEqual(['*']);
-  expect(s).not.toHaveProperty('secret');
-  expect(s).not.toHaveProperty('helper');
+  expect(s.enabledOps).toEqual(["*"]);
+  expect(s).not.toHaveProperty("secret");
+  expect(s).not.toHaveProperty("helper");
 });
 
-test('sanitize returns independent copies (no shared mutation)', () => {
+test("sanitize returns independent copies (no shared mutation)", () => {
   const a = sanitizeMathSettings(undefined);
   const b = sanitizeMathSettings(undefined);
-  a.difficulty['+'].minDigits = 99;
-  a.enabledOps.push('*');
-  expect(b.difficulty['+']).toEqual({ minDigits: 1, maxDigits: 2 });
-  expect(b.enabledOps).toEqual(['+', '-']);
+  a.difficulty["+"].minDigits = 99;
+  a.enabledOps.push("*");
+  expect(b.difficulty["+"]).toEqual({ minDigits: 1, maxDigits: 2 });
+  expect(b.enabledOps).toEqual(["+", "-"]);
 });
 
-test('load returns defaults when nothing stored', async () => {
+test("load returns defaults when nothing stored", async () => {
   expect(await loadMathSettings()).toEqual(fullDefaults());
 });
 
-test('load parses and sanitizes stored JSON', async () => {
+test("load parses and sanitizes stored JSON", async () => {
   await AsyncStorage.setItem(
     MATH_SETTINGS_KEY,
     JSON.stringify({
-      enabledOps: ['+', '÷', '%'],
-      difficulty: { '+': { minDigits: 5, maxDigits: 1 } },
-    })
+      enabledOps: ["+", "÷", "%"],
+      difficulty: { "+": { minDigits: 5, maxDigits: 1 } },
+    }),
   );
   const s = await loadMathSettings();
-  expect(s.enabledOps).toEqual(['+', '÷']);
-  expect(s.difficulty['+']).toEqual({ minDigits: 1, maxDigits: 4 });
-  expect(s.difficulty['-']).toEqual({ minDigits: 1, maxDigits: 2 });
-  expect(s.wrongAnswerMode).toBe('retry');
+  expect(s.enabledOps).toEqual(["+", "÷"]);
+  expect(s.difficulty["+"]).toEqual({ minDigits: 1, maxDigits: 4 });
+  expect(s.difficulty["-"]).toEqual({ minDigits: 1, maxDigits: 2 });
+  expect(s.wrongAnswerMode).toBe("retry");
 });
 
-test('load falls back to defaults on corrupt stored value', async () => {
-  await AsyncStorage.setItem(MATH_SETTINGS_KEY, '{not json');
+test("load falls back to defaults on corrupt stored value", async () => {
+  await AsyncStorage.setItem(MATH_SETTINGS_KEY, "{not json");
   expect(await loadMathSettings()).toEqual(fullDefaults());
 });
 
-test('load falls back to defaults on non-object stored value', async () => {
+test("load falls back to defaults on non-object stored value", async () => {
   await AsyncStorage.setItem(MATH_SETTINGS_KEY, '"just a string"');
   expect(await loadMathSettings()).toEqual(fullDefaults());
 });
 
-test('save persists sanitized settings as JSON', async () => {
+test("save persists sanitized settings as JSON", async () => {
   const junk = {
-    enabledOps: ['+', '-', '%'],
-    difficulty: { '+': { minDigits: 9, maxDigits: 0 } },
-    wrongAnswerMode: 'retry',
-    columnarStyle: { digitSize: 44, rowGap: 20, colGap: 6 },
+    enabledOps: ["+", "-", "%"],
+    difficulty: { "+": { minDigits: 9, maxDigits: 0 } },
+    wrongAnswerMode: "retry",
+    columnarStyle: { digitSize: 44, rowGap: 20, colGap: 6, padTop: 20 },
   };
   await saveMathSettings(sanitizeMathSettings(junk) as MathSettings);
   const stored = await AsyncStorage.getItem(MATH_SETTINGS_KEY);
   const parsed = JSON.parse(stored as string);
-  expect(parsed.enabledOps).toEqual(['+', '-']);
-  expect(parsed.difficulty['+']).toEqual({ minDigits: 1, maxDigits: 4 });
-  expect(parsed.difficulty['-']).toEqual({ minDigits: 1, maxDigits: 2 });
+  expect(parsed.enabledOps).toEqual(["+", "-"]);
+  expect(parsed.difficulty["+"]).toEqual({ minDigits: 1, maxDigits: 4 });
+  expect(parsed.difficulty["-"]).toEqual({ minDigits: 1, maxDigits: 2 });
 });
 
-test('save then load round-trips sanitized settings', async () => {
+test("save then load round-trips sanitized settings", async () => {
   const wanted: MathSettings = fullDefaults();
-  wanted.enabledOps = ['*', '+'];
-  wanted.difficulty['+'] = { minDigits: 2, maxDigits: 3 };
-  wanted.wrongAnswerMode = 'new';
+  wanted.enabledOps = ["*", "+"];
+  wanted.difficulty["+"] = { minDigits: 2, maxDigits: 3 };
+  wanted.wrongAnswerMode = "new";
   await saveMathSettings(wanted);
   expect(await loadMathSettings()).toEqual({
     ...wanted,
-    enabledOps: ['*', '+'],
+    enabledOps: ["*", "+"],
     difficulty: {
-      '+': { minDigits: 2, maxDigits: 3 },
-      '-': { minDigits: 1, maxDigits: 2 },
-      '*': { minDigits: 1, maxDigits: 2 },
-      '÷': { minDigits: 1, maxDigits: 2 },
+      "+": { minDigits: 2, maxDigits: 3 },
+      "-": { minDigits: 1, maxDigits: 2 },
+      "*": { minDigits: 1, maxDigits: 2 },
+      "÷": { minDigits: 1, maxDigits: 2 },
     },
   });
 });
 
-describe('window-aware default columnar style', () => {
+describe("window-aware default columnar style", () => {
   beforeEach(async () => {
     await AsyncStorage.removeItem(MATH_SETTINGS_KEY);
   });
 
-  test('no stored settings: phone window gets compact default, tablet window gets full default', async () => {
+  test("no stored settings: phone window gets compact default, tablet window gets full default", async () => {
     const phone = await loadMathSettingsForWindow(390, 844);
-    expect(phone.columnarStyle).toEqual({ digitSize: 30, rowGap: 14, colGap: 4 });
+    expect(phone.columnarStyle).toEqual({
+      digitSize: 30,
+      rowGap: 14,
+      colGap: 4,
+      padTop: 20,
+    });
 
     const tablet = await loadMathSettingsForWindow(1024, 768);
-    expect(tablet.columnarStyle).toEqual({ digitSize: 44, rowGap: 20, colGap: 6 });
+    expect(tablet.columnarStyle).toEqual({
+      digitSize: 44,
+      rowGap: 20,
+      colGap: 6,
+      padTop: 20,
+    });
   });
 
-  test('stored settings win over the window default', async () => {
+  test("stored settings win over the window default", async () => {
     await AsyncStorage.setItem(
       MATH_SETTINGS_KEY,
-      JSON.stringify({ columnarStyle: { digitSize: 52, rowGap: 30, colGap: 8 } })
+      JSON.stringify({
+        columnarStyle: { digitSize: 52, rowGap: 30, colGap: 8 },
+      }),
     );
     const loaded = await loadMathSettingsForWindow(390, 844);
-    expect(loaded.columnarStyle).toEqual({ digitSize: 52, rowGap: 30, colGap: 8 });
+    expect(loaded.columnarStyle).toEqual({
+      digitSize: 52,
+      rowGap: 30,
+      colGap: 8,
+      padTop: 20,
+    });
   });
 });

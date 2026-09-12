@@ -1,32 +1,19 @@
 {
   "expo": {
-    "name": "LearningTools",
-    "slug": "LearningTools",
+    "name": "learning-tools",
+    "slug": "learning-tools",
     "version": "1.0.3",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "learningtools",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "runtimeVersion": {
-      "policy": "nativeVersion"
-    },
-    "updates": {
-      "enabled": true,
-      "url": "http://learning-tools-updates.zhxlp.com/api/manifest",
-      "codeSigningCertificate": "./code-signing/certificate.pem",
-      "codeSigningMetadata": {
-        "keyid": "main",
-        "alg": "rsa-v1_5-sha256"
-      }
-    },
+    "userInterfaceStyle": "light",
     "ios": {
       "buildNumber": "3",
-      "supportsTablet": true,
       "requireFullScreen": true,
       "infoPlist": {
         "CFBundleAllowMixedLocalizations": true
-      }
+      },
+      "bundleIdentifier": "com.zhxlp.LearningTools"
     },
     "android": {
       "versionCode": 3,
@@ -36,9 +23,14 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.zhxlp.LearningTools"
+      "package": "com.zhxlp.LearningTools",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "output": "static",
@@ -49,16 +41,13 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/withAndroidDebugKeystore.js",
       [
         "expo-splash-screen",
         {
+          "backgroundColor": "#FFFFFF",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
-          "dark": {
-            "backgroundColor": "#ffffff"
-          }
+          "imageWidth": 200
         }
       ],
       [
@@ -76,15 +65,7 @@
           }
         }
       ],
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "usesCleartextTraffic": true
-          },
-          "ios": {}
-        }
-      ]
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,
